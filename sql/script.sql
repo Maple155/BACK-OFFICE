@@ -19,7 +19,7 @@ CREATE TABLE Reservation (
 );
 
 CREATE INDEX idx_reservation_dateHeure ON Reservation(dateHeure);
-CREATE INDEX idx_reservation_client ON Reservation(id_client);
+CREATE INDEX idx_reservation_client ON Reservation(client);
 CREATE INDEX idx_reservation_hotel ON Reservation(id_hotel);
 
 -- Option : Insertion de données d'exemple

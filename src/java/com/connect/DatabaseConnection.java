@@ -1,11 +1,13 @@
+package com.connect;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DatabaseConnection {
-    private static final String URL = "jdbc:postgresql://localhost:5432/nom_de_votre_base";
-    private static final String USER = "votre_utilisateur";
-    private static final String PASSWORD = "votre_mot_de_passe";
+    private static final String URL = "jdbc:postgresql://localhost:5432/locations";
+    private static final String USER = "postgres";
+    private static final String PASSWORD = "root";
     
     public static Connection getConnection() throws SQLException {
         try {

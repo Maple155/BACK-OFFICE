@@ -9,7 +9,8 @@ public class Reservation {
     private String client;
     private int nbPassager;
     private LocalDateTime dateHeure;
-    
+    private String hotelNom;
+
     // Constructeurs
     public Reservation() {}
     
@@ -67,6 +68,14 @@ public class Reservation {
     
     public void setDateHeure(LocalDateTime dateHeure) {
         this.dateHeure = dateHeure;
+    }
+
+    public String getHotelNom() {
+        return hotelNom;
+    }
+
+    public void setHotelNom(String hotelNom) {
+        this.hotelNom = hotelNom;
     }
     
     // Méthodes utilitaires

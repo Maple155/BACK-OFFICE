@@ -13,7 +13,7 @@ set LIB_DIR=lib
 set SERVLET_API_JAR=C:\Program Files\Apache Software Foundation\Tomcat 10.1\lib\servlet-api.jar
 set TOMCAT_WEBAPPS_DIR=C:\Program Files\Apache Software Foundation\Tomcat 10.1\webapps
 
-set WAR_NAME=framework.war
+set WAR_NAME=location.war
 
 @REM ================================
 @REM === Etape 0 - Nettoyage du dossier build

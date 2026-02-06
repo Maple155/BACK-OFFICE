@@ -28,7 +28,7 @@ INSERT INTO Hotel (nom) VALUES
 ('Hotel London'),
 ('Hotel New York');
 
-INSERT INTO Reservation (id_hotel, id_client, nbPassager, dateHeure) VALUES
+INSERT INTO Reservation (id_hotel, client, nbPassager, dateHeure) VALUES
 (1, 'CLIENT-001', 2, '2024-01-15 14:30:00'),
 (2, 'CLIENT-002', 4, '2024-01-16 10:00:00'),
 (1, 'CLIENT-003', 1, '2024-01-17 16:45:00');

@@ -10,8 +10,8 @@ set LIB_DIR=lib
 @REM set SERVLET_API_JAR=C:\Program Files\Apache Software Foundation\apache-tomcat-10.1.28\lib\servlet-api.jar
 @REM set TOMCAT_WEBAPPS_DIR=C:\Program Files\Apache Software Foundation\apache-tomcat-10.1.28\webapps
 
-set SERVLET_API_JAR=C:\Program Files\Apache Software Foundation\Tomcat 10.1\lib\servlet-api.jar
-set TOMCAT_WEBAPPS_DIR=C:\Program Files\Apache Software Foundation\Tomcat 10.1\webapps
+set SERVLET_API_JAR=/Users/faniry/ITU/utils/apache-tomcat-10.1.49/lib/servlet-api.jar
+set TOMCAT_WEBAPPS_DIR=/Users/faniry/ITU/utils/apache-tomcat-10.1.49/webapps
 
 set WAR_NAME=location.war
 

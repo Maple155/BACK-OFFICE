@@ -1,0 +1,27 @@
+# === Java / IDE ===
+*.class
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# === Build outputs ===
+build/
+target/
+out/
+
+# === Dependencies / libs ===
+lib/
+src/main/webapp/WEB-INF/lib/
+
+# === Secrets / local scripts ===
+deploy.bat
+src/java/com/connect/DatabaseConnection.java
+
+# === Generated artifacts ===
+*.war
+*.jar

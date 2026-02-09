@@ -22,13 +22,20 @@ CREATE INDEX idx_reservation_dateHeure ON Reservation(dateHeure);
 CREATE INDEX idx_reservation_client ON Reservation(client);
 CREATE INDEX idx_reservation_hotel ON Reservation(id_hotel);
 
--- Option : Insertion de données d'exemple
 INSERT INTO Hotel (nom) VALUES
-('Hotel Paris'),
-('Hotel London'),
-('Hotel New York');
+('Colbert'),
+('Novotel'),
+('Ibis'),
+('Lokanga');
 
-INSERT INTO Reservation (id_hotel, client, nbPassager, dateHeure) VALUES
-(1, 'CLIENT-001', 2, '2024-01-15 14:30:00'),
-(2, 'CLIENT-002', 4, '2024-01-16 10:00:00'),
-(1, 'CLIENT-003', 1, '2024-01-17 16:45:00');
+INSERT INTO Reservation (id, id_hotel, client, nbPassager, dateHeure) VALUES
+(1, 3, '4631', 11, '2026-02-05 00:01'),
+(2, 3, '4394', 1,  '2026-02-05 23:55'),
+(3, 1, '8054', 2,  '2026-02-09 10:17'),
+(4, 2, '1432', 4,  '2026-02-01 15:25'),
+(5, 1, '7861', 4,  '2026-01-28 07:11'),
+(6, 1, '3308', 5,  '2026-01-28 07:45'),
+(7, 2, '4484', 13, '2026-02-28 08:25'),
+(8, 2, '9687', 8,  '2026-02-28 13:00'),
+(9, 1, '6302', 7,  '2026-02-15 13:00'),
+(10, 4, '8640', 1, '2026-02-18 22:55');

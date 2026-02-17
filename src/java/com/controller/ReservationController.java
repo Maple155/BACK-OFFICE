@@ -53,7 +53,7 @@ public class ReservationController {
             
             if (success) {
                 ModelView model = new ModelView("reservationForm.jsp");
-                model.addObject("successMessage", "Réservation créée avec succès!");
+                model.addObject("successMessage", "Réservation creee avec succes!");
                 return model;
             } else {
                 throw new Exception("Échec de l'insertion dans la base de données");
@@ -74,7 +74,7 @@ public class ReservationController {
     @GetURL(url = "/reservation/list")
     public ModelView listReservations() {
         ModelView model = new ModelView("reservationList.jsp");
-        model.addObject("title", "Liste des réservations");
+        model.addObject("title", "Liste des reservations");
         
         List<Reservation> reservations = reservationService.getAllReservations();
         model.addObject("reservations", reservations);
@@ -89,7 +89,7 @@ public class ReservationController {
         
         boolean success = reservationService.deleteReservation(id);
         if (success) {
-            model.addObject("successMessage", "Réservation supprimée avec succès!");
+            model.addObject("successMessage", "Reservation supprimee avec succes!");
         } else {
             model.addObject("errorMessage", "Erreur lors de la suppression de la réservation");
         }
@@ -171,11 +171,11 @@ public class ReservationController {
             
             if (success) {
                 response.put("success", true);
-                response.put("message", "Réservation créée avec succès");
+                response.put("message", "Réservation creee avec succes");
                 response.put("reservation", convertReservationToMap(reservation));
             } else {
                 response.put("success", false);
-                response.put("message", "Échec de la création de la réservation");
+                response.put("message", "Échec de la creation de la reservation");
             }
             
         } catch (Exception e) {

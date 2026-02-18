@@ -20,6 +20,7 @@ src/main/webapp/WEB-INF/lib/
 
 # === Secrets / local scripts ===
 deploy.bat
+deploy.sh
 src/java/com/connect/DatabaseConnection.java
 
 # === Generated artifacts ===

@@ -1,192 +1,182 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="java.util.List" %>
 <%@ page import="com.entity.Vehicule" %>
 <%@ page import="com.entity.TypeCarburant" %>
+<%@ page import="java.util.List" %>
 <!DOCTYPE html>
-<html>
+<html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <title><%= request.getAttribute("title") != null ? request.getAttribute("title") : "Formulaire de véhicule" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifier Véhicule | Location Admin</title>
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/modern-style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="text"],
-        input[type="number"],
-        select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-        .btn {
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-        }
-        .btn:hover {
-            background-color: #45a049;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-        }
-        .btn-secondary:hover {
-            background-color: #5a6268;
-        }
-        .alert {
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .alert-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .link-button {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-top: 20px;
-        }
-        .link-button:hover {
-            background-color: #0056b3;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .button-group .btn {
-            flex: 1;
-        }
+        :root { --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1><%= request.getAttribute("title") != null ? request.getAttribute("title") : "Formulaire de véhicule" %></h1>
+    <div class="app-layout" id="appLayout">
+        <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
         
-        <%-- Affichage des messages --%>
-        <%
-            String successMessage = (String) request.getAttribute("successMessage");
-            String errorMessage = (String) request.getAttribute("errorMessage");
-            
-            if (successMessage != null && !successMessage.isEmpty()) {
-        %>
-            <div class="alert alert-success">
-                <%= successMessage %>
-            </div>
-        <%
-            }
-            
-            if (errorMessage != null && !errorMessage.isEmpty()) {
-        %>
-            <div class="alert alert-error">
-                <%= errorMessage %>
-            </div>
-        <%
-            }
-        %>
-        
-        <form action="${pageContext.request.contextPath}/vehicule/save" method="post">
-            <% 
-                Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
-                boolean isEdit = vehicule != null && vehicule.getId() > 0;
-                
-                if (isEdit) {
-            %>
-                <input type="hidden" name="id" value="<%= vehicule.getId() %>">
-            <%
-                }
-            %>
-            
-            <div class="form-group">
-                <label for="reference">Référence:</label>
-                <input type="text" id="reference" name="reference" 
-                       value="<%= isEdit ? vehicule.getReference() : "" %>" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="nbPlaces">Nombre de places:</label>
-                <input type="number" id="nbPlaces" name="nbPlaces" min="1" max="50"
-                       value="<%= isEdit ? vehicule.getNbPlaces() : "4" %>" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="typeCarburantId">Type de carburant:</label>
-                <select id="typeCarburantId" name="typeCarburantId" required>
-                    <option value="">Sélectionner un type de carburant</option>
-                    <%
-                        List<TypeCarburant> typesCarburant = (List<TypeCarburant>) request.getAttribute("typesCarburant");
-                        if (typesCarburant != null) {
-                            for (TypeCarburant type : typesCarburant) {
-                                String selected = "";
-                                if (isEdit && vehicule.getTypeCarburantId() == type.getId()) {
-                                    selected = "selected";
-                                }
-                    %>
-                        <option value="<%= type.getId() %>" <%= selected %>>
-                            <%= type.getLibelle() %>
-                        </option>
-                    <%
-                            }
-                        }
-                    %>
-                </select>
-            </div>
-            
-            <div class="button-group">
-                <button type="submit" class="btn">
-                    <%= isEdit ? "Modifier" : "Créer" %> le véhicule
-                </button>
-                <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary" style="text-align: center; line-height: 20px;">
-                    Annuler
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="${pageContext.request.contextPath}/" class="sidebar-logo">
+                    <div class="sidebar-logo-icon"><i class="fas fa-car"></i></div>
+                    <div>
+                        <div class="sidebar-logo-text">Location</div>
+                        <div class="sidebar-logo-subtitle">Back Office</div>
+                    </div>
                 </a>
             </div>
-        </form>
-        
-        <a href="${pageContext.request.contextPath}/vehicule/list" class="link-button">
-            Voir tous les véhicules
-        </a>
+            <button class="sidebar-toggle" onclick="toggleSidebarCollapse()" title="Réduire/Agrandir"><i class="fas fa-chevron-left"></i></button>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Gestion</div>
+                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item active" data-tooltip="Véhicules">
+                        <span class="nav-icon"><i class="fas fa-car-side"></i></span>
+                        <span class="nav-text">Véhicules</span>
+                    </a>
+                    <a href="${pageContext.request.contextPath}/reservation/list" class="nav-item" data-tooltip="Réservations">
+                        <span class="nav-icon"><i class="fas fa-clipboard-list"></i></span>
+                        <span class="nav-text">Réservations</span>
+                    </a>
+                    <a href="${pageContext.request.contextPath}/reservation/date/filter" class="nav-item" data-tooltip="Filtrer par date">
+                        <span class="nav-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <span class="nav-text">Filtrer par date</span>
+                    </a>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="theme-toggle" onclick="toggleTheme()">
+                    <span class="theme-toggle-text">Mode sombre</span>
+                    <div class="theme-switch"></div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-header">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title">Modifier le Véhicule</h1>
+                <div class="header-actions">
+                    <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </a>
+                </div>
+            </header>
+            
+            <div class="content-area">
+                <div class="card animate-slide-up" style="max-width: 600px;">
+                    <%
+                        Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
+                        List<TypeCarburant> carburants = (List<TypeCarburant>) request.getAttribute("carburants");
+                    %>
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-title-icon"><i class="fas fa-edit"></i></div>
+                            Informations du Véhicule
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form action="${pageContext.request.contextPath}/vehicule/update" method="post">
+                            <input type="hidden" name="id" value="<%= vehicule.getId() %>">
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="marque">
+                                    <i class="fas fa-trademark"></i> Marque
+                                </label>
+                                <input type="text" class="form-input" id="marque" name="marque" 
+                                       value="<%= vehicule.getMarque() %>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="modele">
+                                    <i class="fas fa-car"></i> Modèle
+                                </label>
+                                <input type="text" class="form-input" id="modele" name="modele" 
+                                       value="<%= vehicule.getModele() %>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="immatriculation">
+                                    <i class="fas fa-id-card"></i> Immatriculation
+                                </label>
+                                <input type="text" class="form-input" id="immatriculation" name="immatriculation" 
+                                       value="<%= vehicule.getImmatriculation() %>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="nbPlace">
+                                    <i class="fas fa-users"></i> Nombre de places
+                                </label>
+                                <input type="number" class="form-input" id="nbPlace" name="nbPlace" 
+                                       value="<%= vehicule.getNbPlace() %>" min="1" max="50" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="carburant">
+                                    <i class="fas fa-gas-pump"></i> Type de carburant
+                                </label>
+                                <select class="form-input" id="carburant" name="idCarburant" required>
+                                    <% if (carburants != null) {
+                                        for (TypeCarburant tc : carburants) { %>
+                                            <option value="<%= tc.getId() %>" 
+                                                <%= (vehicule.getIdCarburant() == tc.getId()) ? "selected" : "" %>>
+                                                <%= tc.getNom() %>
+                                            </option>
+                                    <% }} %>
+                                </select>
+                            </div>
+                            
+                            <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 2rem;">
+                                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                                    <i class="fas fa-save"></i> Enregistrer
+                                </button>
+                                <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary" style="flex: 1;">
+                                    <i class="fas fa-times"></i> Annuler
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+
+        function toggleMobileSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        // Sidebar Collapse Toggle (Desktop)
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const appLayout = document.getElementById('appLayout');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            appLayout.classList.toggle('sidebar-collapsed', isCollapsed);
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        }
+
+        // Load saved sidebar state
+        const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        if (sidebarCollapsed) {
+            document.getElementById('sidebar').classList.add('collapsed');
+            document.getElementById('appLayout').classList.add('sidebar-collapsed');
+        }
+    </script>
 </body>
 </html>

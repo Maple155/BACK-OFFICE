@@ -81,6 +81,10 @@ public class ReservationController {
         List<Reservation> reservations = reservationService.getAllReservations();
         model.addObject("reservations", reservations);
         
+        // Add lieux for modal form
+        List<Lieu> lieux = reservationService.getAllLieux();
+        model.addObject("lieux", lieux);
+        
         return model;
     }
 
@@ -94,14 +98,18 @@ public class ReservationController {
 
     @Get
     @GetURL(url = "/reservation/date/assigned")
-    public ModelView listAssignedReservationsByDate(@Param("date") String dateStr) {
+    public ModelView listAssignedReservationsByDate(
+            @Param("dateDebut") String dateDebutStr,
+            @Param("dateFin") String dateFinStr) {
         ModelView model = new ModelView("reservationAssignedList.jsp");
         model.addObject("title", "Réservations assignées");
-        model.addObject("selectedDate", dateStr);
+        model.addObject("dateDebut", dateDebutStr);
+        model.addObject("dateFin", dateFinStr);
 
         try {
-            LocalDate date = LocalDate.parse(dateStr);
-            List<Map<String, Object>> assigned = reservationService.getAssignedReservationsByDate(date);
+            LocalDate dateDebut = LocalDate.parse(dateDebutStr);
+            LocalDate dateFin = LocalDate.parse(dateFinStr);
+            List<Map<String, Object>> assigned = reservationService.getAssignedReservationsByDateRange(dateDebut, dateFin);
             model.addObject("assignedReservations", assigned);
         } catch (Exception e) {
             model.addObject("errorMessage", "Date invalide: " + e.getMessage());
@@ -113,14 +121,18 @@ public class ReservationController {
 
     @Get
     @GetURL(url = "/reservation/date/unassigned")
-    public ModelView listUnassignedReservationsByDate(@Param("date") String dateStr) {
+    public ModelView listUnassignedReservationsByDate(
+            @Param("dateDebut") String dateDebutStr,
+            @Param("dateFin") String dateFinStr) {
         ModelView model = new ModelView("reservationUnassignedList.jsp");
         model.addObject("title", "Réservations non assignées");
-        model.addObject("selectedDate", dateStr);
+        model.addObject("dateDebut", dateDebutStr);
+        model.addObject("dateFin", dateFinStr);
 
         try {
-            LocalDate date = LocalDate.parse(dateStr);
-            List<Reservation> unassigned = reservationService.getUnassignedReservationsByDate(date);
+            LocalDate dateDebut = LocalDate.parse(dateDebutStr);
+            LocalDate dateFin = LocalDate.parse(dateFinStr);
+            List<Reservation> unassigned = reservationService.getUnassignedReservationsByDateRange(dateDebut, dateFin);
             model.addObject("unassignedReservations", unassigned);
         } catch (Exception e) {
             model.addObject("errorMessage", "Date invalide: " + e.getMessage());

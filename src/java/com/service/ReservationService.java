@@ -201,33 +201,39 @@ public class ReservationService {
     }
 
     public List<Map<String, Object>> getAssignedReservationsByDate(LocalDate date) {
+        return getAssignedReservationsByDateRange(date, date);
+    }
+
+    public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT v.id as vehicule_id, v.reference as vehicule_reference, " +
-                "r.id as reservation_id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
+        String sql = "SELECT v.id as vehicule_id, v.marque || ' ' || v.modele as vehicule, " +
+                "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
                 "FROM Vehicules_Reservations vr " +
                 "JOIN Vehicule v ON vr.id_voiture = v.id " +
                 "JOIN Reservation r ON vr.id_reservation = r.id " +
                 "JOIN Lieu l ON r.id_lieu = l.id " +
-                "WHERE DATE(r.dateHeure) = ? " +
-                "ORDER BY v.reference, r.dateHeure";
+                "WHERE DATE(r.dateHeure) >= ? AND DATE(r.dateHeure) <= ? " +
+                "ORDER BY r.dateHeure, v.marque";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setDate(1, Date.valueOf(date));
+            pstmt.setDate(1, Date.valueOf(startDate));
+            pstmt.setDate(2, Date.valueOf(endDate));
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
-                row.put("vehiculeId", rs.getInt("vehicule_id"));
-                row.put("vehiculeReference", rs.getString("vehicule_reference"));
-                row.put("reservationId", rs.getInt("reservation_id"));
+                row.put("id", rs.getInt("id"));
+                row.put("vehicule", rs.getString("vehicule"));
                 row.put("client", rs.getString("client"));
                 row.put("nbPassager", rs.getInt("nbPassager"));
                 row.put("lieuCode", rs.getString("lieu_code"));
 
                 Timestamp timestamp = rs.getTimestamp("dateHeure");
-                row.put("dateHeure", timestamp != null ? timestamp.toLocalDateTime() : null);
+                if (timestamp != null) {
+                    row.put("dateHeure", timestamp.toLocalDateTime().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+                }
 
                 rows.add(row);
             }
@@ -240,18 +246,23 @@ public class ReservationService {
     }
 
     public List<Reservation> getUnassignedReservationsByDate(LocalDate date) {
+        return getUnassignedReservationsByDateRange(date, date);
+    }
+
+    public List<Reservation> getUnassignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
         List<Reservation> reservations = new ArrayList<>();
         String sql = "SELECT r.*, l.code as lieu_code " +
                 "FROM Reservation r " +
                 "JOIN Lieu l ON r.id_lieu = l.id " +
                 "LEFT JOIN Vehicules_Reservations vr ON vr.id_reservation = r.id " +
-                "WHERE DATE(r.dateHeure) = ? AND vr.id IS NULL " +
+                "WHERE DATE(r.dateHeure) >= ? AND DATE(r.dateHeure) <= ? AND vr.id IS NULL " +
                 "ORDER BY r.dateHeure";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setDate(1, Date.valueOf(date));
+            pstmt.setDate(1, Date.valueOf(startDate));
+            pstmt.setDate(2, Date.valueOf(endDate));
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {

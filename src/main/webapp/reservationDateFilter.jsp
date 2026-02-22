@@ -1,109 +1,179 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
+<%@ page import="java.util.List" %>
+<%@ page import="com.entity.Reservation" %>
+<%@ page import="java.time.format.DateTimeFormatter" %>
 <!DOCTYPE html>
-<html>
+<html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <title><%= request.getAttribute("title") != null ? request.getAttribute("title") : "Filtrer les réservations" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filtrer par Date | Location Admin</title>
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/modern-style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 700px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="date"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-        .actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .btn {
-            background-color: #007bff;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 15px;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-secondary {
-            background-color: #28a745;
-        }
-        .btn-back {
-            background-color: #6c757d;
-        }
+        :root { --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1><%= request.getAttribute("title") != null ? request.getAttribute("title") : "Liste des réservations par date" %></h1>
+    <div class="app-layout" id="appLayout">
+        <div class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="${pageContext.request.contextPath}/" class="sidebar-logo">
+                    <div class="sidebar-logo-icon"><i class="fas fa-car"></i></div>
+                    <div>
+                        <div class="sidebar-logo-text">Location</div>
+                        <div class="sidebar-logo-subtitle">Back Office</div>
+                    </div>
+                </a>
+            </div>
+            <button class="sidebar-toggle" onclick="toggleSidebarCollapse()" title="Réduire/Agrandir"><i class="fas fa-chevron-left"></i></button>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Gestion</div>
+                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item" data-tooltip="Véhicules">
+                        <span class="nav-icon"><i class="fas fa-car-side"></i></span>
+                        <span class="nav-text">Véhicules</span>
+                    </a>
+                    <a href="${pageContext.request.contextPath}/reservation/list" class="nav-item" data-tooltip="Réservations">
+                        <span class="nav-icon"><i class="fas fa-clipboard-list"></i></span>
+                        <span class="nav-text">Réservations</span>
+                    </a>
+                    <a href="${pageContext.request.contextPath}/reservation/date/filter" class="nav-item active" data-tooltip="Filtrer par date">
+                        <span class="nav-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <span class="nav-text">Filtrer par date</span>
+                    </a>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="theme-toggle" onclick="toggleTheme()">
+                    <span class="theme-toggle-text">Mode sombre</span>
+                    <div class="theme-switch"></div>
+                </div>
+            </div>
+        </aside>
 
-        <form id="dateForm" method="get">
-            <div class="form-group">
-                <label for="date">Date :</label>
-                <input type="date" id="date" name="date" required>
+        <main class="main-content">
+            <header class="top-header">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title">Filtrer par Date</h1>
+                <div class="header-actions">
+                    <a href="${pageContext.request.contextPath}/reservation/list" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </a>
+                </div>
+            </header>
+            
+            <div class="content-area">
+                <!-- Filter Form -->
+                <div class="card animate-slide-up mb-4">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-title-icon"><i class="fas fa-filter"></i></div>
+                            Filtrer les réservations par date
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 500px;">
+                            <div class="form-group">
+                                <label class="form-label" for="dateDebut">
+                                    <i class="fas fa-calendar-alt"></i> Date de début
+                                </label>
+                                <input type="date" id="dateDebut" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="dateFin">
+                                    <i class="fas fa-calendar-check"></i> Date de fin
+                                </label>
+                                <input type="date" id="dateFin" class="form-input">
+                            </div>
+                        </div>
+                        <div class="form-actions" style="justify-content: flex-start; gap: 1rem; margin-top: 1.5rem;">
+                            <button type="button" class="btn btn-primary" onclick="viewAssigned()">
+                                <i class="fas fa-check-circle"></i> Réservations Assignées
+                            </button>
+                            <button type="button" class="btn btn-warning" onclick="viewUnassigned()">
+                                <i class="fas fa-clock"></i> Réservations Non Assignées
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-            <div class="actions">
-                <button type="button" class="btn" onclick="goToAssigned()">Voir liste assignée</button>
-                <button type="button" class="btn btn-secondary" onclick="goToUnassigned()">Voir non assignée</button>
-                <a href="${pageContext.request.contextPath}/reservation/list" class="btn btn-back">Retour liste générale</a>
-            </div>
-        </form>
+        </main>
     </div>
 
     <script>
-        const dateInput = document.getElementById('date');
-        dateInput.value = new Date().toISOString().split('T')[0];
-
-        function getSelectedDate() {
-            return encodeURIComponent(dateInput.value);
-        }
-
-        function goToAssigned() {
-            if (!dateInput.value) {
-                alert('Veuillez sélectionner une date');
-                return;
+        const contextPath = '${pageContext.request.contextPath}';
+        
+        function validateDates() {
+            const dateDebut = document.getElementById('dateDebut').value;
+            const dateFin = document.getElementById('dateFin').value;
+            
+            if (!dateDebut || !dateFin) {
+                alert('Veuillez sélectionner une date de début et une date de fin');
+                return null;
             }
-            window.location.href = '${pageContext.request.contextPath}/reservation/date/assigned?date=' + getSelectedDate();
+            
+            if (dateDebut > dateFin) {
+                alert('La date de début doit être antérieure ou égale à la date de fin');
+                return null;
+            }
+            
+            return { dateDebut, dateFin };
+        }
+        
+        function viewAssigned() {
+            const dates = validateDates();
+            if (!dates) return;
+            window.location.href = contextPath + '/reservation/date/assigned?dateDebut=' + dates.dateDebut + '&dateFin=' + dates.dateFin;
+        }
+        
+        function viewUnassigned() {
+            const dates = validateDates();
+            if (!dates) return;
+            window.location.href = contextPath + '/reservation/date/unassigned?dateDebut=' + dates.dateDebut + '&dateFin=' + dates.dateFin;
+        }
+        
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+
+        function toggleMobileSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
         }
 
-        function goToUnassigned() {
-            if (!dateInput.value) {
-                alert('Veuillez sélectionner une date');
-                return;
-            }
-            window.location.href = '${pageContext.request.contextPath}/reservation/date/unassigned?date=' + getSelectedDate();
+        // Sidebar Collapse Toggle (Desktop)
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const appLayout = document.getElementById('appLayout');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            appLayout.classList.toggle('sidebar-collapsed', isCollapsed);
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
         }
+
+        // Load saved sidebar state
+        const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        if (sidebarCollapsed) {
+            document.getElementById('sidebar').classList.add('collapsed');
+            document.getElementById('appLayout').classList.add('sidebar-collapsed');
+        }
+        
+        // Default to today's date
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('dateDebut').value = today;
+        document.getElementById('dateFin').value = today;
     </script>
 </body>
 </html>

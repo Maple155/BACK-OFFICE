@@ -126,6 +126,9 @@
             <a href="${pageContext.request.contextPath}/reservation/form" class="btn btn-new">
                 Nouvelle réservation
             </a>
+            <a href="${pageContext.request.contextPath}/reservation/date/filter" class="btn btn-new">
+                Liste par date
+            </a>
         </div>
         
         <%
@@ -139,7 +142,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Client</th>
-                        <th>Hôtel</th>
+                        <th>Lieu</th>
                         <th>Passagers</th>
                         <th>Date/Heure</th>
                         <th>Actions</th>
@@ -152,7 +155,7 @@
                         <tr>
                             <td><%= reservation.getId() %></td>
                             <td><%= reservation.getClient() %></td>
-                            <td><%= reservation.getHotelNom() != null ? reservation.getHotelNom() : "N/A" %></td>
+                            <td><%= reservation.getLieuCode() != null ? reservation.getLieuCode() : "N/A" %></td>
                             <td><%= reservation.getNbPassager() %></td>
                             <td><%= reservation.getDateHeure() != null ? reservation.getDateHeure().format(formatter) : "N/A" %></td>
                             <td>

@@ -1,6 +1,7 @@
 package com.controller;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,7 +15,7 @@ import annotation.JSON;
 import annotation.Post;
 import annotation.Param;
 import com.entity.Reservation;
-import com.entity.Hotel;
+import com.entity.Lieu;
 import com.service.ReservationService;
 import service.ModelView;
 
@@ -30,8 +31,8 @@ public class ReservationController {
         ModelView model = new ModelView("reservationForm.jsp");
         model.addObject("title", "Formulaire de reservation");
         
-        List<Hotel> hotels = reservationService.getAllHotels();
-        model.addObject("hotels", hotels);
+        List<Lieu> lieux = reservationService.getAllLieux();
+        model.addObject("lieux", lieux);
         
         return model;
     }
@@ -39,7 +40,7 @@ public class ReservationController {
     @Post
     @GetURL(url = "/reservation/save")
     public ModelView saveReservation(
-            @Param("idHotel") int idHotel,
+            @Param("idLieu") int idLieu,
             @Param("client") String client,
             @Param("nbPassager") int nbPassager,
             @Param("dateHeure") String dateHeureStr) {
@@ -47,13 +48,14 @@ public class ReservationController {
         try {
             LocalDateTime dateHeure = LocalDateTime.parse(dateHeureStr);
             
-            Reservation reservation = new Reservation(idHotel, client, nbPassager, dateHeure);
+            Reservation reservation = new Reservation(idLieu, client, nbPassager, dateHeure);
             
             boolean success = reservationService.insertReservation(reservation);
             
             if (success) {
                 ModelView model = new ModelView("reservationForm.jsp");
                 model.addObject("successMessage", "Réservation creee avec succes!");
+                model.addObject("lieux", reservationService.getAllLieux());
                 return model;
             } else {
                 throw new Exception("Échec de l'insertion dans la base de données");
@@ -63,8 +65,8 @@ public class ReservationController {
             ModelView model = new ModelView("reservationForm.jsp");
             model.addObject("errorMessage", "Erreur lors de la création de la réservation: " + e.getMessage());
             
-            List<Hotel> hotels = reservationService.getAllHotels();
-            model.addObject("hotels", hotels);
+            List<Lieu> lieux = reservationService.getAllLieux();
+            model.addObject("lieux", lieux);
             
             return model;
         }
@@ -79,6 +81,52 @@ public class ReservationController {
         List<Reservation> reservations = reservationService.getAllReservations();
         model.addObject("reservations", reservations);
         
+        return model;
+    }
+
+    @Get
+    @GetURL(url = "/reservation/date/filter")
+    public ModelView reservationDateFilter() {
+        ModelView model = new ModelView("reservationDateFilter.jsp");
+        model.addObject("title", "Liste des réservations par date");
+        return model;
+    }
+
+    @Get
+    @GetURL(url = "/reservation/date/assigned")
+    public ModelView listAssignedReservationsByDate(@Param("date") String dateStr) {
+        ModelView model = new ModelView("reservationAssignedList.jsp");
+        model.addObject("title", "Réservations assignées");
+        model.addObject("selectedDate", dateStr);
+
+        try {
+            LocalDate date = LocalDate.parse(dateStr);
+            List<Map<String, Object>> assigned = reservationService.getAssignedReservationsByDate(date);
+            model.addObject("assignedReservations", assigned);
+        } catch (Exception e) {
+            model.addObject("errorMessage", "Date invalide: " + e.getMessage());
+            model.addObject("assignedReservations", new ArrayList<>());
+        }
+
+        return model;
+    }
+
+    @Get
+    @GetURL(url = "/reservation/date/unassigned")
+    public ModelView listUnassignedReservationsByDate(@Param("date") String dateStr) {
+        ModelView model = new ModelView("reservationUnassignedList.jsp");
+        model.addObject("title", "Réservations non assignées");
+        model.addObject("selectedDate", dateStr);
+
+        try {
+            LocalDate date = LocalDate.parse(dateStr);
+            List<Reservation> unassigned = reservationService.getUnassignedReservationsByDate(date);
+            model.addObject("unassignedReservations", unassigned);
+        } catch (Exception e) {
+            model.addObject("errorMessage", "Date invalide: " + e.getMessage());
+            model.addObject("unassignedReservations", new ArrayList<>());
+        }
+
         return model;
     }
 
@@ -145,14 +193,14 @@ public class ReservationController {
     @Post
     @GetURL(url = "/api/reservations/create")
     public Map<String, Object> createReservationApi(
-            @Param("idHotel") int idHotel,
+            @Param("idLieu") int idLieu,
             @Param("client") String client,
             @Param("nbPassager") int nbPassager,
             @Param("dateHeure") String dateHeureStr) {
         
         System.out.println("=== Appel de createReservationApi() ===");
         System.out.println("Paramètres API reçus:");
-        System.out.println("  idHotel: " + idHotel);
+        System.out.println("  idLieu: " + idLieu);
         System.out.println("  client: " + client);
         System.out.println("  nbPassager: " + nbPassager);
         System.out.println("  dateHeure: " + dateHeureStr);
@@ -160,18 +208,15 @@ public class ReservationController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            // Convertir la date string en LocalDateTime
             LocalDateTime dateHeure = LocalDateTime.parse(dateHeureStr);
             
-            // Créer la réservation
-            Reservation reservation = new Reservation(idHotel, client, nbPassager, dateHeure);
+            Reservation reservation = new Reservation(idLieu, client, nbPassager, dateHeure);
             
-            // Enregistrer dans la base de données
             boolean success = reservationService.insertReservation(reservation);
             
             if (success) {
                 response.put("success", true);
-                response.put("message", "Réservation creee avec succes");
+                response.put("message", "Réservation créée avec succès");
                 response.put("reservation", convertReservationToMap(reservation));
             } else {
                 response.put("success", false);
@@ -189,27 +234,27 @@ public class ReservationController {
 
     @JSON
     @Get
-    @GetURL(url = "/api/hotels")
-    public Map<String, Object> getAllHotelsApi() {
-        System.out.println("=== Appel de getAllHotelsApi() ===");
+    @GetURL(url = "/api/lieux")
+    public Map<String, Object> getAllLieuxApi() {
+        System.out.println("=== Appel de getAllLieuxApi() ===");
         
         Map<String, Object> response = new HashMap<>();
-        List<Hotel> hotels = reservationService.getAllHotels();
+        List<Lieu> lieux = reservationService.getAllLieux();
         
         response.put("success", true);
-        response.put("count", hotels != null ? hotels.size() : 0);
+        response.put("count", lieux != null ? lieux.size() : 0);
         
-        // Convertir les hôtels en liste de Maps
-        List<Map<String, Object>> hotelsList = new ArrayList<>();
-        if (hotels != null) {
-            for (Hotel hotel : hotels) {
-                Map<String, Object> hotelMap = new HashMap<>();
-                hotelMap.put("id", hotel.getId());
-                hotelMap.put("nom", hotel.getNom());
-                hotelsList.add(hotelMap);
+        List<Map<String, Object>> lieuxList = new ArrayList<>();
+        if (lieux != null) {
+            for (Lieu lieu : lieux) {
+                Map<String, Object> lieuMap = new HashMap<>();
+                lieuMap.put("id", lieu.getId());
+                lieuMap.put("code", lieu.getCode());
+                lieuMap.put("libelle", lieu.getLibelle());
+                lieuxList.add(lieuMap);
             }
         }
-        response.put("hotels", hotelsList);
+        response.put("lieux", lieuxList);
         
         return response;
     }
@@ -225,20 +270,20 @@ public class ReservationController {
         
         int totalReservations = reservations != null ? reservations.size() : 0;
         int totalPassagers = 0;
-        Map<Integer, Integer> reservationsParHotel = new HashMap<>();
+        Map<Integer, Integer> reservationsParLieu = new HashMap<>();
         
         if (reservations != null) {
             for (Reservation reservation : reservations) {
                 totalPassagers += reservation.getNbPassager();
-                int hotelId = reservation.getIdHotel();
-                reservationsParHotel.put(hotelId, reservationsParHotel.getOrDefault(hotelId, 0) + 1);
+                int lieuId = reservation.getIdLieu();
+                reservationsParLieu.put(lieuId, reservationsParLieu.getOrDefault(lieuId, 0) + 1);
             }
         }
         
         response.put("success", true);
         response.put("totalReservations", totalReservations);
         response.put("totalPassagers", totalPassagers);
-        response.put("reservationsParHotel", reservationsParHotel);
+        response.put("reservationsParLieu", reservationsParLieu);
         
         return response;
     }
@@ -249,10 +294,10 @@ public class ReservationController {
         
         if (reservation != null) {
             map.put("id", reservation.getId());
-            map.put("idHotel", reservation.getIdHotel());
+            map.put("idLieu", reservation.getIdLieu());
             map.put("client", reservation.getClient());
             map.put("nbPassager", reservation.getNbPassager());
-            map.put("hotelNom", reservation.getHotelNom());
+            map.put("lieuCode", reservation.getLieuCode());
             
             // Formater les dates
             if (reservation.getDateHeure() != null) {

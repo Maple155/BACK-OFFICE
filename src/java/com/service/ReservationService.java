@@ -206,14 +206,14 @@ public class ReservationService {
 
     public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT v.id as vehicule_id, v.marque || ' ' || v.modele as vehicule, " +
+        String sql = "SELECT v.id as vehicule_id, v.reference as vehicule, " +
                 "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
                 "FROM Vehicules_Reservations vr " +
                 "JOIN Vehicule v ON vr.id_voiture = v.id " +
                 "JOIN Reservation r ON vr.id_reservation = r.id " +
                 "JOIN Lieu l ON r.id_lieu = l.id " +
                 "WHERE DATE(r.dateHeure) >= ? AND DATE(r.dateHeure) <= ? " +
-                "ORDER BY r.dateHeure, v.marque";
+            "ORDER BY r.dateHeure, v.reference";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {

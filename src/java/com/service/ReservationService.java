@@ -6,41 +6,22 @@ import com.connect.DatabaseConnection;
 import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ReservationService {
-    
-    public boolean insertReservation(Reservation reservation) {
-        String sql = "INSERT INTO Reservation (id_lieu, client, nbPassager, dateHeure) VALUES (?, ?, ?, ?)";
-        
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setInt(1, reservation.getIdLieu());
-            pstmt.setString(2, reservation.getClient());
-            pstmt.setInt(3, reservation.getNbPassager());
-            pstmt.setTimestamp(4, Timestamp.valueOf(reservation.getDateHeure()));
-            
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Erreur lors de l'insertion de la réservation: " + e.getMessage());
-            return false;
-        }
-    }
-        
+
+    // --- GESTION DES LIEUX ---
+
     public List<Lieu> getAllLieux() {
         List<Lieu> lieux = new ArrayList<>();
         String sql = "SELECT * FROM Lieu ORDER BY code";
-        
         try (Connection conn = DatabaseConnection.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-            
             while (rs.next()) {
                 Lieu lieu = new Lieu();
                 lieu.setId(rs.getInt("id"));
@@ -48,179 +29,133 @@ public class ReservationService {
                 lieu.setLibelle(rs.getString("libelle"));
                 lieux.add(lieu);
             }
-            
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération des lieux: " + e.getMessage());
+            e.printStackTrace();
         }
-        
         return lieux;
-    }
-    
-    // Méthode pour supprimer une réservation
-    public boolean deleteReservation(int id) {
-        String sql = "DELETE FROM Reservation WHERE id = ?";
-        
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setInt(1, id);
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Erreur lors de la suppression de la réservation: " + e.getMessage());
-            return false;
-        }
     }
 
     public String getLieuCodeById(int lieuId) {
         String sql = "SELECT code FROM Lieu WHERE id = ?";
-        
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
             pstmt.setInt(1, lieuId);
             ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getString("code");
-            }
-            
+            if (rs.next()) return rs.getString("code");
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération du code du lieu: " + e.getMessage());
+            e.printStackTrace();
         }
-        
-        return "Lieu inconnu";
+        return "N/A";
     }
-    
-    public List<Reservation> getAllReservations() {
-        List<Reservation> reservations = new ArrayList<>();
-        String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
-                    "JOIN Lieu l ON r.id_lieu = l.id " +
-                    "ORDER BY r.dateHeure DESC";
-        
+
+    // --- GESTION DES RÉSERVATIONS (CRUD) ---
+
+    public boolean insertReservation(Reservation reservation) {
+        String sql = "INSERT INTO Reservation (id_lieu, client, nbPassager, dateHeure) VALUES (?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            
-            while (rs.next()) {
-                Reservation reservation = new Reservation();
-                reservation.setId(rs.getInt("id"));
-                reservation.setIdLieu(rs.getInt("id_lieu"));
-                reservation.setClient(rs.getString("client"));
-                reservation.setNbPassager(rs.getInt("nbPassager"));
-                
-                Timestamp timestamp = rs.getTimestamp("dateHeure");
-                if (timestamp != null) {
-                    reservation.setDateHeure(timestamp.toLocalDateTime());
-                }
-                
-                String lieuCode = rs.getString("lieu_code");
-                reservation.setLieuCode(lieuCode != null ? lieuCode : getLieuCodeById(rs.getInt("id_lieu")));
-                
-                reservations.add(reservation);
-            }
-            
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, reservation.getIdLieu());
+            pstmt.setString(2, reservation.getClient());
+            pstmt.setInt(3, reservation.getNbPassager());
+            pstmt.setTimestamp(4, Timestamp.valueOf(reservation.getDateHeure()));
+            return pstmt.executeUpdate() > 0;
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération des réservations: " + e.getMessage());
-            
-            // Fallback: essayer sans JOIN
-            try {
-                return getAllReservationsFallback();
-            } catch (SQLException e2) {
-                System.err.println("Erreur avec fallback: " + e2.getMessage());
-            }
+            e.printStackTrace();
+            return false;
         }
-        
-        return reservations;
     }
-    
-    public List<Reservation> getAllReservationsFallback() throws SQLException {
-        List<Reservation> reservations = new ArrayList<>();
-        String sql = "SELECT * FROM Reservation ORDER BY dateHeure DESC";
-        
+
+    public boolean deleteReservation(int id) {
+        String sql = "DELETE FROM Reservation WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            
-            while (rs.next()) {
-                Reservation reservation = new Reservation();
-                reservation.setId(rs.getInt("id"));
-                reservation.setIdLieu(rs.getInt("id_lieu"));
-                reservation.setClient(rs.getString("client"));
-                reservation.setNbPassager(rs.getInt("nbPassager"));
-                
-                Timestamp timestamp = rs.getTimestamp("dateHeure");
-                if (timestamp != null) {
-                    reservation.setDateHeure(timestamp.toLocalDateTime());
-                }
-                
-                reservation.setLieuCode(getLieuCodeById(rs.getInt("id_lieu")));
-                
-                reservations.add(reservation);
-            }
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, id);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
-        
-        return reservations;
     }
 
     public Reservation getReservationById(int id) {
         String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
-                    "LEFT JOIN Lieu l ON r.id_lieu = l.id " +
-                    "WHERE r.id = ?";
-        
+                    "LEFT JOIN Lieu l ON r.id_lieu = l.id WHERE r.id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
             pstmt.setInt(1, id);
             ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                Reservation reservation = new Reservation();
-                reservation.setId(rs.getInt("id"));
-                reservation.setIdLieu(rs.getInt("id_lieu"));
-                reservation.setClient(rs.getString("client"));
-                reservation.setNbPassager(rs.getInt("nbPassager"));
-                
-                Timestamp timestamp = rs.getTimestamp("dateHeure");
-                if (timestamp != null) {
-                    reservation.setDateHeure(timestamp.toLocalDateTime());
-                }
-                
-                String lieuCode = rs.getString("lieu_code");
-                reservation.setLieuCode(lieuCode != null ? lieuCode : getLieuCodeById(rs.getInt("id_lieu")));
-                
-                return reservation;
-            }
-            
+            if (rs.next()) return mapResultSetToReservation(rs);
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération de la réservation par ID: " + e.getMessage());
+            e.printStackTrace();
         }
-        
         return null;
     }
 
-    public List<Map<String, Object>> getAssignedReservationsByDate(LocalDate date) {
-        return getAssignedReservationsByDateRange(date, date);
+    public List<Reservation> getAllReservations() {
+        List<Reservation> reservations = new ArrayList<>();
+        String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
+                    "JOIN Lieu l ON r.id_lieu = l.id ORDER BY r.dateHeure DESC";
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                reservations.add(mapResultSetToReservation(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return reservations;
     }
 
-    public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT v.id as vehicule_id, v.reference as vehicule, " +
-                "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
-                "FROM Vehicules_Reservations vr " +
-                "JOIN Vehicule v ON vr.id_voiture = v.id " +
-                "JOIN Reservation r ON vr.id_reservation = r.id " +
-                "JOIN Lieu l ON r.id_lieu = l.id " +
-                "WHERE DATE(r.dateHeure) >= ? AND DATE(r.dateHeure) <= ? " +
-            "ORDER BY r.dateHeure, v.reference";
+    // --- FILTRAGE ET ASSIGNATIONS (Logique Métier) ---
 
+    /**
+     * Récupère les réservations non encore liées à une mission.
+     */
+    public List<Reservation> getUnassignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
+        List<Reservation> reservations = new ArrayList<>();
+        String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
+                 "JOIN Lieu l ON r.id_lieu = l.id " +
+                 "WHERE DATE(r.dateHeure) BETWEEN ? AND ? " +
+                 "AND r.id NOT IN (SELECT id_reservation FROM Vehicules_Reservations) " +
+                 "ORDER BY r.dateHeure";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
             pstmt.setDate(1, Date.valueOf(startDate));
             pstmt.setDate(2, Date.valueOf(endDate));
             ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                reservations.add(mapResultSetToReservation(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return reservations;
+    }
+
+    /**
+     * Récupère les réservations assignées avec calcul dynamique du statut.
+     */
+    public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        String sql = "SELECT v.reference as vehicule, m.heure_depart_prevu, m.heure_retour_prevu, " +
+                 "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
+                 "FROM Reservation r " +
+                 "JOIN Vehicules_Reservations vr ON r.id = vr.id_reservation " +
+                 "JOIN Mission m ON vr.id_mission = m.id " +
+                 "JOIN Vehicule v ON m.id_vehicule = v.id " +
+                 "JOIN Lieu l ON r.id_lieu = l.id " +
+                 "WHERE DATE(r.dateHeure) BETWEEN ? AND ? " +
+                 "ORDER BY m.heure_depart_prevu ASC";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setDate(1, Date.valueOf(startDate));
+            pstmt.setDate(2, Date.valueOf(endDate));
+            ResultSet rs = pstmt.executeQuery();
+
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            LocalDateTime now = LocalDateTime.now();
 
             while (rs.next()) {
                 Map<String, Object> row = new HashMap<>();
@@ -229,62 +164,55 @@ public class ReservationService {
                 row.put("client", rs.getString("client"));
                 row.put("nbPassager", rs.getInt("nbPassager"));
                 row.put("lieuCode", rs.getString("lieu_code"));
+                
+                LocalDateTime dateHeure = rs.getTimestamp("dateHeure").toLocalDateTime();
+                LocalDateTime depart = rs.getTimestamp("heure_depart_prevu").toLocalDateTime();
+                LocalDateTime retour = rs.getTimestamp("heure_retour_prevu").toLocalDateTime();
 
-                Timestamp timestamp = rs.getTimestamp("dateHeure");
-                if (timestamp != null) {
-                    row.put("dateHeure", timestamp.toLocalDateTime().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+                row.put("dateHeure", dateHeure.format(dtf));
+                row.put("heureDepart", depart.format(dtf));
+                row.put("heureRetour", retour.format(dtf));
+
+                // --- LOGIQUE DE STATUT CALCULÉE ---
+                // Le statut n'existe plus en base, on le déduit du temps
+                String statusLabel;
+                String statusClass; // Pour faciliter l'affichage CSS en JSP
+
+                if (now.isBefore(depart)) {
+                    statusLabel = "EN ATTENTE";
+                    statusClass = "badge-info";
+                } else if (now.isAfter(retour)) {
+                    statusLabel = "TERMINÉ";
+                    statusClass = "badge-success";
+                } else {
+                    statusLabel = "EN ROUTE";
+                    statusClass = "badge-warning";
                 }
+
+                row.put("statutCalcule", statusLabel);
+                row.put("statusClass", statusClass);
 
                 rows.add(row);
             }
-
         } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération des réservations assignées: " + e.getMessage());
+            e.printStackTrace();
         }
-
         return rows;
     }
 
-    public List<Reservation> getUnassignedReservationsByDate(LocalDate date) {
-        return getUnassignedReservationsByDateRange(date, date);
-    }
+    // --- HELPERS ---
 
-    public List<Reservation> getUnassignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
-        List<Reservation> reservations = new ArrayList<>();
-        String sql = "SELECT r.*, l.code as lieu_code " +
-                "FROM Reservation r " +
-                "JOIN Lieu l ON r.id_lieu = l.id " +
-                "LEFT JOIN Vehicules_Reservations vr ON vr.id_reservation = r.id " +
-                "WHERE DATE(r.dateHeure) >= ? AND DATE(r.dateHeure) <= ? AND vr.id IS NULL " +
-                "ORDER BY r.dateHeure";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setDate(1, Date.valueOf(startDate));
-            pstmt.setDate(2, Date.valueOf(endDate));
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Reservation reservation = new Reservation();
-                reservation.setId(rs.getInt("id"));
-                reservation.setIdLieu(rs.getInt("id_lieu"));
-                reservation.setClient(rs.getString("client"));
-                reservation.setNbPassager(rs.getInt("nbPassager"));
-                reservation.setLieuCode(rs.getString("lieu_code"));
-
-                Timestamp timestamp = rs.getTimestamp("dateHeure");
-                if (timestamp != null) {
-                    reservation.setDateHeure(timestamp.toLocalDateTime());
-                }
-
-                reservations.add(reservation);
-            }
-
-        } catch (SQLException e) {
-            System.err.println("Erreur lors de la récupération des réservations non assignées: " + e.getMessage());
+    private Reservation mapResultSetToReservation(ResultSet rs) throws SQLException {
+        Reservation res = new Reservation();
+        res.setId(rs.getInt("id"));
+        res.setIdLieu(rs.getInt("id_lieu"));
+        res.setClient(rs.getString("client"));
+        res.setNbPassager(rs.getInt("nbPassager"));
+        res.setLieuCode(rs.getString("lieu_code"));
+        Timestamp ts = rs.getTimestamp("dateHeure");
+        if (ts != null) {
+            res.setDateHeure(ts.toLocalDateTime());
         }
-
-        return reservations;
+        return res;
     }
 }

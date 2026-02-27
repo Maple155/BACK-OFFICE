@@ -64,7 +64,7 @@
                 <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 class="page-title">Modifier la Réservation</h1>
+                <h1 class="page-title">Formulaire de Réservation</h1>
                 <div class="header-actions">
                     <a href="${pageContext.request.contextPath}/reservation/list" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Retour
@@ -73,9 +73,24 @@
             </header>
             
             <div class="content-area">
+                <%-- Affichage des messages de succès ou d'erreur --%>
+                <% if (request.getAttribute("successMessage") != null) { %>
+                    <div class="alert alert-success mb-4" style="padding: 1rem; background: #d1fae5; color: #065f46; border-radius: 8px; margin-bottom: 1rem;">
+                        <i class="fas fa-check-circle"></i> <%= request.getAttribute("successMessage") %>
+                    </div>
+                <% } %>
+                <% if (request.getAttribute("errorMessage") != null) { %>
+                    <div class="alert alert-danger mb-4" style="padding: 1rem; background: #fee2e2; color: #991b1b; border-radius: 8px; margin-bottom: 1rem;">
+                        <i class="fas fa-exclamation-triangle"></i> <%= request.getAttribute("errorMessage") %>
+                    </div>
+                <% } %>
+
                 <div class="card animate-slide-up" style="max-width: 700px;">
                     <%
                         Reservation reservation = (Reservation) request.getAttribute("reservation");
+                        // Si c'est une création, on initialise un objet vide pour éviter les NullPointerException
+                        if (reservation == null) reservation = new Reservation();
+                        
                         List<Vehicule> vehicules = (List<Vehicule>) request.getAttribute("vehicules");
                         List<Lieu> lieux = (List<Lieu>) request.getAttribute("lieux");
                         DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
@@ -83,11 +98,11 @@
                     <div class="card-header">
                         <div class="card-title">
                             <div class="card-title-icon"><i class="fas fa-edit"></i></div>
-                            Informations de la Réservation #<%= reservation.getId() %>
+                            <%= (reservation.getId() > 0) ? "Modifier la Réservation #" + reservation.getId() : "Nouvelle Réservation" %>
                         </div>
                     </div>
                     <div class="card-body">
-                        <form action="${pageContext.request.contextPath}/reservation/update" method="post">
+                        <form action="${pageContext.request.contextPath}/reservation/save" method="post">
                             <input type="hidden" name="id" value="<%= reservation.getId() %>">
                             
                             <div class="form-group">
@@ -95,7 +110,7 @@
                                     <i class="fas fa-user"></i> Client
                                 </label>
                                 <input type="text" class="form-input" id="client" name="client" 
-                                       value="<%= reservation.getClient() %>" required>
+                                       value="<%= (reservation.getClient() != null) ? reservation.getClient() : "" %>" required>
                             </div>
                             
                             <div class="form-group">
@@ -103,7 +118,7 @@
                                     <i class="fas fa-calendar-alt"></i> Date et Heure
                                 </label>
                                 <input type="datetime-local" class="form-input" id="dateHeure" name="dateHeure" 
-                                       value="<%= reservation.getDateHeure() != null ? reservation.getDateHeure().format(dtFormatter) : "" %>" required>
+                                       value="<%= (reservation.getDateHeure() != null) ? reservation.getDateHeure().format(dtFormatter) : "" %>" required>
                             </div>
                             
                             <div class="form-group">
@@ -116,34 +131,37 @@
                             
                             <div class="form-group">
                                 <label class="form-label" for="lieu">
-                                    <i class="fas fa-map-marker-alt"></i> Lieu
+                                    <i class="fas fa-map-marker-alt"></i> Lieu de destination
                                 </label>
                                 <select class="form-input" id="lieu" name="idLieu" required>
+                                    <option value="">-- Sélectionner un lieu --</option>
                                     <% if (lieux != null) {
                                         for (Lieu l : lieux) { %>
                                             <option value="<%= l.getId() %>" 
                                                 <%= (reservation.getIdLieu() == l.getId()) ? "selected" : "" %>>
-                                                <%= l.getCode() %> - <%= l.getNom() %>
+                                                <%= l.getCode() %> - <%= l.getLibelle() %>
                                             </option>
                                     <% }} %>
                                 </select>
                             </div>
                             
+                            <%-- Section Véhicule visible uniquement en mode modification si nécessaire --%>
+                            <% if (reservation.getId() > 0) { %>
                             <div class="form-group">
                                 <label class="form-label" for="vehicule">
-                                    <i class="fas fa-car"></i> Véhicule (assignation)
+                                    <i class="fas fa-car"></i> Véhicule assigné (Manuel)
                                 </label>
                                 <select class="form-input" id="vehicule" name="idVehicule">
                                     <option value="">-- Non assigné --</option>
                                     <% if (vehicules != null) {
                                         for (Vehicule v : vehicules) { %>
-                                            <option value="<%= v.getId() %>" 
-                                                <%= (reservation.getIdVehicule() != null && reservation.getIdVehicule() == v.getId()) ? "selected" : "" %>>
-                                                <%= v.getMarque() %> <%= v.getModele() %> - <%= v.getImmatriculation() %> (<%= v.getNbPlace() %> places)
+                                            <option value="<%= v.getId() %>">
+                                                <%= v.getReference() %> - (<%= v.getNbPlaces() %> places)
                                             </option>
                                     <% }} %>
                                 </select>
                             </div>
+                            <% } %>
                             
                             <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 2rem;">
                                 <button type="submit" class="btn btn-primary" style="flex: 1;">
@@ -161,6 +179,7 @@
     </div>
 
     <script>
+        // Gestion du thème
         function toggleTheme() {
             const html = document.documentElement;
             const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -169,12 +188,13 @@
         }
         document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
 
+        // Sidebar mobile
         function toggleMobileSidebar() {
             document.querySelector('.sidebar').classList.toggle('open');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
         }
 
-        // Sidebar Collapse Toggle (Desktop)
+        // Sidebar Collapse
         function toggleSidebarCollapse() {
             const sidebar = document.getElementById('sidebar');
             const appLayout = document.getElementById('appLayout');
@@ -183,11 +203,11 @@
             localStorage.setItem('sidebarCollapsed', isCollapsed);
         }
 
-        // Load saved sidebar state
+        // Restauration état sidebar
         const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
         if (sidebarCollapsed) {
-            document.getElementById('sidebar').classList.add('collapsed');
-            document.getElementById('appLayout').classList.add('sidebar-collapsed');
+            document.getElementById('sidebar')?.classList.add('collapsed');
+            document.getElementById('appLayout')?.classList.add('sidebar-collapsed');
         }
     </script>
 </body>

@@ -1,13 +1,13 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="com.entity.Vehicule" %>
-<%@ page import="com.entity.TypeCarburant" %>
 <%@ page import="java.util.List" %>
+<%@ page import="com.entity.Reservation" %>
+<%@ page import="java.time.format.DateTimeFormatter" %>
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modifier Véhicule | Location Admin</title>
+    <title>Filtrer par Date | Location Admin</title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/modern-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -34,7 +34,7 @@
             <nav class="sidebar-nav">
                 <div class="nav-section">
                     <div class="nav-section-title">Gestion</div>
-                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item active" data-tooltip="Véhicules">
+                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item" data-tooltip="Véhicules">
                         <span class="nav-icon"><i class="fas fa-car-side"></i></span>
                         <span class="nav-text">Véhicules</span>
                     </a>
@@ -42,7 +42,7 @@
                         <span class="nav-icon"><i class="fas fa-clipboard-list"></i></span>
                         <span class="nav-text">Réservations</span>
                     </a>
-                    <a href="${pageContext.request.contextPath}/reservation/date/filter" class="nav-item" data-tooltip="Filtrer par date">
+                    <a href="${pageContext.request.contextPath}/reservation/date/filter" class="nav-item active" data-tooltip="Filtrer par date">
                         <span class="nav-icon"><i class="fas fa-calendar-alt"></i></span>
                         <span class="nav-text">Filtrer par date</span>
                     </a>
@@ -62,93 +62,85 @@
                 <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 class="page-title">Modifier le Véhicule</h1>
+                <h1 class="page-title">Filtrer par Date</h1>
                 <div class="header-actions">
-                    <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary">
+                    <a href="${pageContext.request.contextPath}/reservation/list" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Retour
                     </a>
                 </div>
             </header>
             
             <div class="content-area">
-                <div class="card animate-slide-up" style="max-width: 600px;">
-                    <%
-                        Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
-                        List<TypeCarburant> carburants = (List<TypeCarburant>) request.getAttribute("carburants");
-                    %>
+                <!-- Filter Form -->
+                <div class="card animate-slide-up mb-4">
                     <div class="card-header">
                         <div class="card-title">
-                            <div class="card-title-icon"><i class="fas fa-edit"></i></div>
-                            Informations du Véhicule
+                            <div class="card-title-icon"><i class="fas fa-filter"></i></div>
+                            Filtrer les réservations par date
                         </div>
                     </div>
                     <div class="card-body">
-                        <form action="${pageContext.request.contextPath}/vehicule/update" method="post">
-                            <input type="hidden" name="id" value="<%= vehicule.getId() %>">
-                            
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 500px;">
                             <div class="form-group">
-                                <label class="form-label" for="marque">
-                                    <i class="fas fa-trademark"></i> Marque
+                                <label class="form-label" for="dateDebut">
+                                    <i class="fas fa-calendar-alt"></i> Date de début
                                 </label>
-                                <input type="text" class="form-input" id="marque" name="marque" 
-                                       value="<%= vehicule.getMarque() %>" required>
+                                <input type="date" id="dateDebut" class="form-input">
                             </div>
-                            
                             <div class="form-group">
-                                <label class="form-label" for="modele">
-                                    <i class="fas fa-car"></i> Modèle
+                                <label class="form-label" for="dateFin">
+                                    <i class="fas fa-calendar-check"></i> Date de fin
                                 </label>
-                                <input type="text" class="form-input" id="modele" name="modele" 
-                                       value="<%= vehicule.getModele() %>" required>
+                                <input type="date" id="dateFin" class="form-input">
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="immatriculation">
-                                    <i class="fas fa-id-card"></i> Immatriculation
-                                </label>
-                                <input type="text" class="form-input" id="immatriculation" name="immatriculation" 
-                                       value="<%= vehicule.getImmatriculation() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="nbPlace">
-                                    <i class="fas fa-users"></i> Nombre de places
-                                </label>
-                                <input type="number" class="form-input" id="nbPlace" name="nbPlace" 
-                                       value="<%= vehicule.getNbPlace() %>" min="1" max="50" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="carburant">
-                                    <i class="fas fa-gas-pump"></i> Type de carburant
-                                </label>
-                                <select class="form-input" id="carburant" name="idCarburant" required>
-                                    <% if (carburants != null) {
-                                        for (TypeCarburant tc : carburants) { %>
-                                            <option value="<%= tc.getId() %>" 
-                                                <%= (vehicule.getIdCarburant() == tc.getId()) ? "selected" : "" %>>
-                                                <%= tc.getNom() %>
-                                            </option>
-                                    <% }} %>
-                                </select>
-                            </div>
-                            
-                            <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 2rem;">
-                                <button type="submit" class="btn btn-primary" style="flex: 1;">
-                                    <i class="fas fa-save"></i> Enregistrer
-                                </button>
-                                <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary" style="flex: 1;">
-                                    <i class="fas fa-times"></i> Annuler
-                                </a>
-                            </div>
-                        </form>
+                        </div>
+                        <div class="form-actions" style="justify-content: flex-start; gap: 1rem; margin-top: 1.5rem;">
+                            <button type="button" class="btn btn-primary" onclick="viewAssigned()">
+                                <i class="fas fa-check-circle"></i> Réservations Assignées
+                            </button>
+                            <button type="button" class="btn btn-warning" onclick="viewUnassigned()">
+                                <i class="fas fa-clock"></i> Réservations Non Assignées
+                            </button>
+                        </div>
                     </div>
                 </div>
+
             </div>
         </main>
     </div>
 
     <script>
+        const contextPath = '${pageContext.request.contextPath}';
+        
+        function validateDates() {
+            const dateDebut = document.getElementById('dateDebut').value;
+            const dateFin = document.getElementById('dateFin').value;
+            
+            if (!dateDebut || !dateFin) {
+                alert('Veuillez sélectionner une date de début et une date de fin');
+                return null;
+            }
+            
+            if (dateDebut > dateFin) {
+                alert('La date de début doit être antérieure ou égale à la date de fin');
+                return null;
+            }
+            
+            return { dateDebut, dateFin };
+        }
+        
+        function viewAssigned() {
+            const dates = validateDates();
+            if (!dates) return;
+            window.location.href = contextPath + '/reservation/date/assigned?dateDebut=' + dates.dateDebut + '&dateFin=' + dates.dateFin;
+        }
+        
+        function viewUnassigned() {
+            const dates = validateDates();
+            if (!dates) return;
+            window.location.href = contextPath + '/reservation/date/unassigned?dateDebut=' + dates.dateDebut + '&dateFin=' + dates.dateFin;
+        }
+        
         function toggleTheme() {
             const html = document.documentElement;
             const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -177,6 +169,11 @@
             document.getElementById('sidebar').classList.add('collapsed');
             document.getElementById('appLayout').classList.add('sidebar-collapsed');
         }
+        
+        // Default to today's date
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('dateDebut').value = today;
+        document.getElementById('dateFin').value = today;
     </script>
 </body>
 </html>

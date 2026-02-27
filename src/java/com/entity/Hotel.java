@@ -8,7 +8,7 @@ public class Hotel {
     
     // Constructeurs
     public Hotel() {}
-    
+     
     public Hotel(String nom) {
         this.nom = nom;
     }

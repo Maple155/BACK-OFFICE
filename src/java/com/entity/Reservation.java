@@ -5,25 +5,25 @@ import java.util.Objects;
 
 public class Reservation {
     private int id;
-    private int idHotel;
+    private int idLieu;
     private String client;
     private int nbPassager;
     private LocalDateTime dateHeure;
-    private String hotelNom;
+    private String lieuCode;
 
     // Constructeurs
     public Reservation() {}
     
-    public Reservation(int idHotel, String client, int nbPassager, LocalDateTime dateHeure) {
-        this.idHotel = idHotel;
+    public Reservation(int idLieu, String client, int nbPassager, LocalDateTime dateHeure) {
+        this.idLieu = idLieu;
         this.client = client;
         this.nbPassager = nbPassager;
         this.dateHeure = dateHeure;
     }
     
-    public Reservation(int id, int idHotel, String client, int nbPassager, LocalDateTime dateHeure) {
+    public Reservation(int id, int idLieu, String client, int nbPassager, LocalDateTime dateHeure) {
         this.id = id;
-        this.idHotel = idHotel;
+        this.idLieu = idLieu;
         this.client = client;
         this.nbPassager = nbPassager;
         this.dateHeure = dateHeure;
@@ -38,12 +38,12 @@ public class Reservation {
         this.id = id;
     }
     
-    public int getIdHotel() {
-        return idHotel;
+    public int getIdLieu() {
+        return idLieu;
     }
     
-    public void setIdHotel(int idHotel) {
-        this.idHotel = idHotel;
+    public void setIdLieu(int idLieu) {
+        this.idLieu = idLieu;
     }
     
     public String getClient() {
@@ -70,12 +70,12 @@ public class Reservation {
         this.dateHeure = dateHeure;
     }
 
-    public String getHotelNom() {
-        return hotelNom;
+    public String getLieuCode() {
+        return lieuCode;
     }
 
-    public void setHotelNom(String hotelNom) {
-        this.hotelNom = hotelNom;
+    public void setLieuCode(String lieuCode) {
+        this.lieuCode = lieuCode;
     }
     
     // Méthodes utilitaires
@@ -83,7 +83,7 @@ public class Reservation {
     public String toString() {
         return "Reservation{" +
                 "id=" + id +
-                ", idHotel=" + idHotel +
+            ", idLieu=" + idLieu +
                 ", client='" + client + '\'' +
                 ", nbPassager=" + nbPassager +
                 ", dateHeure=" + dateHeure +
@@ -96,7 +96,7 @@ public class Reservation {
         if (o == null || getClass() != o.getClass()) return false;
         Reservation that = (Reservation) o;
         return id == that.id && 
-               idHotel == that.idHotel && 
+             idLieu == that.idLieu && 
                nbPassager == that.nbPassager && 
                Objects.equals(client, that.client) && 
                Objects.equals(dateHeure, that.dateHeure);
@@ -104,6 +104,6 @@ public class Reservation {
     
     @Override
     public int hashCode() {
-        return Objects.hash(id, idHotel, client, nbPassager, dateHeure);
+        return Objects.hash(id, idLieu, client, nbPassager, dateHeure);
     }
 }

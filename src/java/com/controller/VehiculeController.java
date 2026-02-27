@@ -45,6 +45,10 @@ public class VehiculeController {
         List<Vehicule> vehicules = vehiculeService.getAllVehicules();
         model.addObject("vehicules", vehicules);
         
+        // Add types de carburant for modal form
+        List<TypeCarburant> typesCarburant = vehiculeService.getAllTypesCarburant();
+        model.addObject("typesCarburant", typesCarburant);
+        
         return model;
     }
     

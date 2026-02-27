@@ -1,13 +1,12 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
-<%@ page import="com.entity.Vehicule" %>
-<%@ page import="com.entity.TypeCarburant" %>
 <%@ page import="java.util.List" %>
+<%@ page import="java.util.Map" %>
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modifier Véhicule | Location Admin</title>
+    <title>Réservations Assignées | Location Admin</title>
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/modern-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -34,7 +33,7 @@
             <nav class="sidebar-nav">
                 <div class="nav-section">
                     <div class="nav-section-title">Gestion</div>
-                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item active" data-tooltip="Véhicules">
+                    <a href="${pageContext.request.contextPath}/vehicule/list" class="nav-item" data-tooltip="Véhicules">
                         <span class="nav-icon"><i class="fas fa-car-side"></i></span>
                         <span class="nav-text">Véhicules</span>
                     </a>
@@ -62,86 +61,75 @@
                 <button class="mobile-menu-btn" onclick="toggleMobileSidebar()">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 class="page-title">Modifier le Véhicule</h1>
+                <h1 class="page-title">Réservations Assignées</h1>
                 <div class="header-actions">
-                    <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary">
+                    <a href="${pageContext.request.contextPath}/reservation/date/filter" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Retour
                     </a>
                 </div>
             </header>
             
             <div class="content-area">
-                <div class="card animate-slide-up" style="max-width: 600px;">
-                    <%
-                        Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
-                        List<TypeCarburant> carburants = (List<TypeCarburant>) request.getAttribute("carburants");
-                    %>
+                <%
+                    String dateDebut = (String) request.getAttribute("dateDebut");
+                    String dateFin = (String) request.getAttribute("dateFin");
+                %>
+                <% if (dateDebut != null && dateFin != null) { %>
+                <div class="card animate-slide-up mb-4" style="margin-bottom: 1.5rem;">
+                    <div class="card-body" style="padding: 1rem 1.5rem;">
+                        <strong><i class="fas fa-calendar"></i> Période :</strong> 
+                        Du <%= dateDebut %> au <%= dateFin %>
+                    </div>
+                </div>
+                <% } %>
+                
+                <div class="card animate-slide-up">
                     <div class="card-header">
                         <div class="card-title">
-                            <div class="card-title-icon"><i class="fas fa-edit"></i></div>
-                            Informations du Véhicule
+                            <div class="card-title-icon"><i class="fas fa-check-circle"></i></div>
+                            Liste des Réservations Assignées
                         </div>
                     </div>
-                    <div class="card-body">
-                        <form action="${pageContext.request.contextPath}/vehicule/update" method="post">
-                            <input type="hidden" name="id" value="<%= vehicule.getId() %>">
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="marque">
-                                    <i class="fas fa-trademark"></i> Marque
-                                </label>
-                                <input type="text" class="form-input" id="marque" name="marque" 
-                                       value="<%= vehicule.getMarque() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="modele">
-                                    <i class="fas fa-car"></i> Modèle
-                                </label>
-                                <input type="text" class="form-input" id="modele" name="modele" 
-                                       value="<%= vehicule.getModele() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="immatriculation">
-                                    <i class="fas fa-id-card"></i> Immatriculation
-                                </label>
-                                <input type="text" class="form-input" id="immatriculation" name="immatriculation" 
-                                       value="<%= vehicule.getImmatriculation() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="nbPlace">
-                                    <i class="fas fa-users"></i> Nombre de places
-                                </label>
-                                <input type="number" class="form-input" id="nbPlace" name="nbPlace" 
-                                       value="<%= vehicule.getNbPlace() %>" min="1" max="50" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="carburant">
-                                    <i class="fas fa-gas-pump"></i> Type de carburant
-                                </label>
-                                <select class="form-input" id="carburant" name="idCarburant" required>
-                                    <% if (carburants != null) {
-                                        for (TypeCarburant tc : carburants) { %>
-                                            <option value="<%= tc.getId() %>" 
-                                                <%= (vehicule.getIdCarburant() == tc.getId()) ? "selected" : "" %>>
-                                                <%= tc.getNom() %>
-                                            </option>
-                                    <% }} %>
-                                </select>
-                            </div>
-                            
-                            <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 2rem;">
-                                <button type="submit" class="btn btn-primary" style="flex: 1;">
-                                    <i class="fas fa-save"></i> Enregistrer
-                                </button>
-                                <a href="${pageContext.request.contextPath}/vehicule/list" class="btn btn-secondary" style="flex: 1;">
-                                    <i class="fas fa-times"></i> Annuler
-                                </a>
-                            </div>
-                        </form>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-wrapper">
+                            <%
+                                List<Map<String, Object>> reservations = (List<Map<String, Object>>) request.getAttribute("assignedReservations");
+                                if (reservations != null && !reservations.isEmpty()) {
+                            %>
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Client</th>
+                                            <th>Lieu</th>
+                                            <th>Passagers</th>
+                                            <th>Date/Heure</th>
+                                            <th>Véhicule</th>
+                                            <th>Statut</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% for (Map<String, Object> reservation : reservations) { %>
+                                            <tr>
+                                                <td><span class="text-muted">#<%= reservation.get("id") %></span></td>
+                                                <td><strong><%= reservation.get("client") %></strong></td>
+                                                <td><span class="badge badge-secondary"><%= reservation.get("lieuCode") != null ? reservation.get("lieuCode") : "N/A" %></span></td>
+                                                <td><span class="badge badge-info"><%= reservation.get("nbPassager") %> pers.</span></td>
+                                                <td><%= reservation.get("dateHeure") != null ? reservation.get("dateHeure") : "N/A" %></td>
+                                                <td><%= reservation.get("vehicule") != null ? reservation.get("vehicule") : "N/A" %></td>
+                                                <td><span class="badge badge-success"><i class="fas fa-check"></i> Assignée</span></td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            <% } else { %>
+                                <div class="empty-state">
+                                    <div class="empty-state-icon"><i class="fas fa-clipboard-check"></i></div>
+                                    <div class="empty-state-title">Aucune réservation assignée</div>
+                                    <p class="empty-state-text">Il n'y a pas de réservation assignée pour cette date.</p>
+                                </div>
+                            <% } %>
+                        </div>
                     </div>
                 </div>
             </div>

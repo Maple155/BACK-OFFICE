@@ -74,7 +74,7 @@
                 <div class="card animate-slide-up" style="max-width: 600px;">
                     <%
                         Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
-                        List<TypeCarburant> carburants = (List<TypeCarburant>) request.getAttribute("carburants");
+                        List<TypeCarburant> carburants = (List<TypeCarburant>) request.getAttribute("typesCarburant");
                     %>
                     <div class="card-header">
                         <div class="card-title">
@@ -83,51 +83,35 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <form action="${pageContext.request.contextPath}/vehicule/update" method="post">
-                            <input type="hidden" name="id" value="<%= vehicule.getId() %>">
+                        <form action="${pageContext.request.contextPath}/vehicule/save" method="post">
+                            <input type="hidden" name="id" value="<%= vehicule != null ? vehicule.getId() : "" %>">
                             
                             <div class="form-group">
-                                <label class="form-label" for="marque">
-                                    <i class="fas fa-trademark"></i> Marque
+                                <label class="form-label" for="reference">
+                                    <i class="fas fa-trademark"></i> Référence
                                 </label>
-                                <input type="text" class="form-input" id="marque" name="marque" 
-                                       value="<%= vehicule.getMarque() %>" required>
+                                <input type="text" class="form-input" id="reference" name="reference" 
+                                       value="<%= vehicule != null ? vehicule.getReference() : "" %>" required>
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label" for="modele">
-                                    <i class="fas fa-car"></i> Modèle
-                                </label>
-                                <input type="text" class="form-input" id="modele" name="modele" 
-                                       value="<%= vehicule.getModele() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="immatriculation">
-                                    <i class="fas fa-id-card"></i> Immatriculation
-                                </label>
-                                <input type="text" class="form-input" id="immatriculation" name="immatriculation" 
-                                       value="<%= vehicule.getImmatriculation() %>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label" for="nbPlace">
+                                <label class="form-label" for="nbPlaces">
                                     <i class="fas fa-users"></i> Nombre de places
                                 </label>
-                                <input type="number" class="form-input" id="nbPlace" name="nbPlace" 
-                                       value="<%= vehicule.getNbPlace() %>" min="1" max="50" required>
+                                <input type="number" class="form-input" id="nbPlaces" name="nbPlaces" 
+                                       value="<%= vehicule != null ? vehicule.getNbPlaces() : "" %>" min="1" max="50" required>
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label" for="carburant">
+                                <label class="form-label" for="typeCarburantId">
                                     <i class="fas fa-gas-pump"></i> Type de carburant
                                 </label>
-                                <select class="form-input" id="carburant" name="idCarburant" required>
+                                <select class="form-input" id="typeCarburantId" name="typeCarburantId" required>
                                     <% if (carburants != null) {
                                         for (TypeCarburant tc : carburants) { %>
                                             <option value="<%= tc.getId() %>" 
-                                                <%= (vehicule.getIdCarburant() == tc.getId()) ? "selected" : "" %>>
-                                                <%= tc.getNom() %>
+                                                <%= (vehicule != null && vehicule.getTypeCarburantId() == tc.getId()) ? "selected" : "" %>>
+                                                <%= tc.getLibelle() %>
                                             </option>
                                     <% }} %>
                                 </select>

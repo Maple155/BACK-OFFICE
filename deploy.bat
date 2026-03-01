@@ -1,87 +1,40 @@
 @echo off
-@REM ================================
-@REM === Configuration des variables
-@REM ================================
-set BUILD_DIR=build
-set SRC_DIR=src\java
-set WEBAPP_DIR=src\main\webapp
-set LIB_DIR=lib
+setlocal
 
-@REM set SERVLET_API_JAR=C:\Program Files\Apache Software Foundation\apache-tomcat-10.1.28\lib\servlet-api.jar
-@REM set TOMCAT_WEBAPPS_DIR=C:\Program Files\Apache Software Foundation\apache-tomcat-10.1.28\webapps
+set "APP_DIR=%~dp0"
+set "WAR_PATH=%APP_DIR%target\location.war"
 
-set SERVLET_API_JAR=/Users/faniry/ITU/utils/apache-tomcat-10.1.49/lib/servlet-api.jar
-set TOMCAT_WEBAPPS_DIR=/Users/faniry/ITU/utils/apache-tomcat-10.1.49/webapps
-
-set WAR_NAME=location.war
-
-@REM ================================
-@REM === Etape 0 - Nettoyage du dossier build
-@REM ================================
-if exist %BUILD_DIR% (
-    echo Le dossier %BUILD_DIR% existe deja. Suppression...
-    rmdir /s /q %BUILD_DIR%
+if "%TOMCAT_WEBAPPS_DIR%"=="" (
+    set "TOMCAT_WEBAPPS_DIR=C:\Program Files\Apache Software Foundation\Tomcat 10.1\webapps"
 )
 
-@REM ================================
-@REM === Etape 1 - Creation du dossier build
-@REM ================================
-echo Creation du dossier %BUILD_DIR%...
-mkdir %BUILD_DIR%
-mkdir %BUILD_DIR%\WEB-INF
-mkdir %BUILD_DIR%\WEB-INF\classes
-
-@REM ================================
-@REM === Etape 2 - Compilation des fichiers Java
-@REM ================================
-echo Compilation des fichiers Java...
-
-@REM :: Lister tous les fichiers .java
-dir /b /s %SRC_DIR%\*.java > sources.txt
-
-@REM :: Construire le classpath avec servlet-api.jar + tous les jars du dossier lib
-set "CLASSPATH=%SERVLET_API_JAR%;%LIB_DIR%\*;%SRC_DIR%"
-
-@REM :: Compiler (IMPORTANT: utiliser des guillemets autour de -cp)
-javac -parameters -cp "%CLASSPATH%" -d %BUILD_DIR%\WEB-INF\classes @sources.txt
+echo [1/3] Build Maven (WAR)...
+cd /d "%APP_DIR%"
+call mvn clean package -DskipTests
 if errorlevel 1 (
-    echo [ERREUR] Erreur lors de la compilation. Verifiez vos fichiers Java.
-    del sources.txt
-    pause
-    exit /b
+    echo [ERREUR] Echec du build Maven.
+    exit /b 1
 )
 
-del sources.txt
+if not exist "%WAR_PATH%" (
+    echo [ERREUR] WAR introuvable: %WAR_PATH%
+    exit /b 1
+)
 
-@REM ================================
-@REM === Etape 3 - Copier les fichiers webapp
-@REM ================================
-echo Copie des fichiers du dossier %WEBAPP_DIR% vers %BUILD_DIR%...
-xcopy /e /i "%WEBAPP_DIR%" "%BUILD_DIR%" >nul
+if not exist "%TOMCAT_WEBAPPS_DIR%" (
+    echo [ERREUR] Dossier Tomcat webapps introuvable: %TOMCAT_WEBAPPS_DIR%
+    echo Definissez la variable TOMCAT_WEBAPPS_DIR puis relancez.
+    exit /b 1
+)
 
-@REM ================================
-@REM === Etape 4 - Creation du fichier WAR
-@REM ================================
-echo Creation du fichier .war...
-cd %BUILD_DIR%
-jar -cvf %WAR_NAME% * >nul
-cd ..
+echo [2/3] Copie du WAR vers Tomcat...
+copy /Y "%WAR_PATH%" "%TOMCAT_WEBAPPS_DIR%\location.war" >nul
+if errorlevel 1 (
+    echo [ERREUR] Copie vers Tomcat echouee.
+    exit /b 1
+)
 
-@REM ================================
-@REM === Etape 5 - Deploiement dans Tomcat
-@REM ================================
-echo Deploiement du fichier .war vers Tomcat...
-copy %BUILD_DIR%\%WAR_NAME% "%TOMCAT_WEBAPPS_DIR%" >nul
-
-@REM ================================
-@REM === Etape 6 - Fin
-@REM ================================
-echo.
-echo ======================================
-echo Deploiement termine avec succes !
-echo Le fichier .war a ete copie dans :
-echo %TOMCAT_WEBAPPS_DIR%\%WAR_NAME%
-echo ======================================
-echo.
-echo Vous pouvez maintenant redemarrer Tomcat pour tester votre application.
-pause
+echo [3/3] Termine
+echo WAR deploye: %TOMCAT_WEBAPPS_DIR%\location.war
+echo Redemarrez Tomcat si necessaire.
+endlocal

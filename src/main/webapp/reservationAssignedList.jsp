@@ -1,6 +1,8 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ page import="java.util.List" %>
 <%@ page import="java.util.Map" %>
+<%@ page import="java.util.ArrayList" %>
+<%@ page import="java.util.LinkedHashMap" %>
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
@@ -83,55 +85,76 @@
                 </div>
                 <% } %>
                 
-                <div class="card animate-slide-up">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <div class="card-title-icon"><i class="fas fa-check-circle"></i></div>
-                            Liste des Réservations Assignées
-                        </div>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div class="table-wrapper">
-                            <%
-                                List<Map<String, Object>> reservations = (List<Map<String, Object>>) request.getAttribute("assignedReservations");
-                                if (reservations != null && !reservations.isEmpty()) {
-                            %>
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Client</th>
-                                            <th>Lieu</th>
-                                            <th>Passagers</th>
-                                            <th>Date/Heure</th>
-                                            <th>Véhicule</th>
-                                            <th>Statut</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <% for (Map<String, Object> reservation : reservations) { %>
-                                            <tr>
-                                                <td><span class="text-muted">#<%= reservation.get("id") %></span></td>
-                                                <td><strong><%= reservation.get("client") %></strong></td>
-                                                <td><span class="badge badge-secondary"><%= reservation.get("lieuCode") != null ? reservation.get("lieuCode") : "N/A" %></span></td>
-                                                <td><span class="badge badge-info"><%= reservation.get("nbPassager") %> pers.</span></td>
-                                                <td><%= reservation.get("dateHeure") != null ? reservation.get("dateHeure") : "N/A" %></td>
-                                                <td><%= reservation.get("vehicule") != null ? reservation.get("vehicule") : "N/A" %></td>
-                                                <td><span class="badge badge-success"><i class="fas fa-check"></i> Assignée</span></td>
-                                            </tr>
-                                        <% } %>
-                                    </tbody>
-                                </table>
-                            <% } else { %>
-                                <div class="empty-state">
-                                    <div class="empty-state-icon"><i class="fas fa-clipboard-check"></i></div>
-                                    <div class="empty-state-title">Aucune réservation assignée</div>
-                                    <p class="empty-state-text">Il n'y a pas de réservation assignée pour cette date.</p>
+                <%
+                    List<Map<String, Object>> reservations = (List<Map<String, Object>>) request.getAttribute("assignedReservations");
+                    if (reservations != null && !reservations.isEmpty()) {
+                        Map<String, List<Map<String, Object>>> groupedByVehicule = new LinkedHashMap<>();
+                        for (Map<String, Object> reservation : reservations) {
+                            String vehicule = reservation.get("vehicule") != null ? reservation.get("vehicule").toString() : "N/A";
+                            if (!groupedByVehicule.containsKey(vehicule)) {
+                                groupedByVehicule.put(vehicule, new ArrayList<>());
+                            }
+                            groupedByVehicule.get(vehicule).add(reservation);
+                        }
+                %>
+                    <% for (Map.Entry<String, List<Map<String, Object>>> entry : groupedByVehicule.entrySet()) { %>
+                        <div class="card animate-slide-up" style="margin-bottom: 1.5rem;">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <div class="card-title-icon"><i class="fas fa-car-side"></i></div>
+                                    Véhicule : <%= entry.getKey() %>
                                 </div>
-                            <% } %>
+                                <span class="badge badge-primary"><%= entry.getValue().size() %> réservation(s)</span>
+                            </div>
+                            <div class="card-body" style="padding: 0;">
+                                <div class="table-wrapper">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Client</th>
+                                                <th>Lieu</th>
+                                                <th>Passagers</th>
+                                                <th>Date/Heure</th>
+                                                <th>Heure Départ</th>
+                                                <th>Heure Retour</th>
+                                                <th>Statut</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% for (Map<String, Object> reservation : entry.getValue()) { %>
+                                                <tr>
+                                                    <td><span class="text-muted">#<%= reservation.get("id") %></span></td>
+                                                    <td><strong><%= reservation.get("client") %></strong></td>
+                                                    <td><span class="badge badge-secondary"><%= reservation.get("lieuCode") != null ? reservation.get("lieuCode") : "N/A" %></span></td>
+                                                    <td><span class="badge badge-info"><%= reservation.get("nbPassager") %> pers.</span></td>
+                                                    <td><%= reservation.get("dateHeure") != null ? reservation.get("dateHeure") : "N/A" %></td>
+                                                    <td><%= reservation.get("heureDepart") != null ? reservation.get("heureDepart") : "N/A" %></td>
+                                                    <td><%= reservation.get("heureRetour") != null ? reservation.get("heureRetour") : "N/A" %></td>
+                                                    <td>
+                                                        <span class="badge <%= reservation.get("statusClass") != null ? reservation.get("statusClass") : "badge-secondary" %>">
+                                                            <%= reservation.get("statutCalcule") != null ? reservation.get("statutCalcule") : "N/A" %>
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    <% } %>
+                <% } else { %>
+                    <div class="card animate-slide-up">
+                        <div class="card-body">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><i class="fas fa-clipboard-check"></i></div>
+                                <div class="empty-state-title">Aucune réservation assignée</div>
+                                <p class="empty-state-text">Il n'y a pas de réservation assignée pour cette date.</p>
+                            </div>
                         </div>
                     </div>
-                </div>
+                <% } %>
             </div>
         </main>
     </div>

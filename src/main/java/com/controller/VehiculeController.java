@@ -38,11 +38,18 @@ public class VehiculeController {
     
     @Get
     @GetURL(url = "/vehicule/list")
-    public ModelView listVehicules() {
+    public ModelView listVehicules(@Param("search") String search) {
         ModelView model = new ModelView("vehiculeList.jsp");
         model.addObject("title", "Liste des vehicules");
         
-        List<Vehicule> vehicules = vehiculeService.getAllVehicules();
+        List<Vehicule> vehicules;
+        if (search != null && !search.trim().isEmpty()) {
+            vehicules = vehiculeService.searchVehicules(search.trim());
+            model.addObject("search", search.trim());
+        } else {
+            vehicules = vehiculeService.getAllVehicules();
+            model.addObject("search", "");
+        }
         model.addObject("vehicules", vehicules);
         
         // Add types de carburant for modal form

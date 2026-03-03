@@ -191,15 +191,23 @@ public class VehiculeService {
         String sql = "SELECT v.*, t.libelle as type_carburant_libelle " +
                     "FROM Vehicule v " +
                     "LEFT JOIN TypeCarburant t ON v.typeCarburant_id = t.id " +
-                    "WHERE v.reference LIKE ? OR t.libelle LIKE ? " +
+                    "WHERE CAST(v.id AS TEXT) LIKE ? " +
+                    "OR UPPER(v.reference) LIKE ? " +
+                    "OR CAST(v.nbPlaces AS TEXT) LIKE ? " +
+                    "OR CAST(v.typeCarburant_id AS TEXT) LIKE ? " +
+                    "OR UPPER(COALESCE(t.libelle, '')) LIKE ? " +
                     "ORDER BY v.reference";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
             String searchPattern = "%" + keyword + "%";
+            String searchPatternUpper = "%" + keyword.toUpperCase() + "%";
             pstmt.setString(1, searchPattern);
-            pstmt.setString(2, searchPattern);
+            pstmt.setString(2, searchPatternUpper);
+            pstmt.setString(3, searchPattern);
+            pstmt.setString(4, searchPattern);
+            pstmt.setString(5, searchPatternUpper);
             
             ResultSet rs = pstmt.executeQuery();
             

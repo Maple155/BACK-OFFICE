@@ -138,15 +138,16 @@ public class ReservationService {
      */
     public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT v.reference as vehicule, m.heure_depart_prevu, m.heure_retour_prevu, " +
-                 "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
-                 "FROM Reservation r " +
-                 "JOIN Vehicules_Reservations vr ON r.id = vr.id_reservation " +
-                 "JOIN Mission m ON vr.id_mission = m.id " +
-                 "JOIN Vehicule v ON m.id_vehicule = v.id " +
-                 "JOIN Lieu l ON r.id_lieu = l.id " +
-                 "WHERE DATE(r.dateHeure) BETWEEN ? AND ? " +
-                 "ORDER BY m.heure_depart_prevu ASC";
+        String sql =
+                "SELECT v.reference as vehicule, m.heure_depart_prevu, m.heure_retour_prevu, " +
+                "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
+                "FROM Reservation r " +
+                "JOIN Vehicules_Reservations vr ON r.id = vr.id_reservation " +
+                "JOIN Mission m ON vr.id_mission = m.id " +
+                "JOIN Vehicule v ON m.id_vehicule = v.id " +
+                "JOIN Lieu l ON r.id_lieu = l.id " +
+                "WHERE DATE(r.dateHeure) BETWEEN ? AND ? " +
+                "ORDER BY v.reference ASC, m.heure_depart_prevu ASC";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {

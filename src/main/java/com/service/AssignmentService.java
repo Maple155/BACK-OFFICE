@@ -24,11 +24,18 @@ public class AssignmentService {
         ReservationService resService = new ReservationService();
         List<Reservation> enAttente = resService.getUnassignedReservationsByDateRange(debut.toLocalDate(), fin.toLocalDate());
         
-        // DOUBLE TRI : Date (ASC) puis NbPassagers (DESC)
-        enAttente.stream()
+        List<Reservation> triee = enAttente.stream()
             .sorted(Comparator.comparing(Reservation::getDateHeure)
                 .thenComparing(Comparator.comparingInt(Reservation::getNbPassager).reversed()))
-            .forEach(res -> assignerReservationAutomatiquement(res.getId()));
+            .collect(Collectors.toList());
+
+        System.out.println("--- DÉBUT DU TRAITEMENT ---");
+        for (Reservation res : triee) {
+            // LOG CRUCIAL : On veut voir l'ID et le nombre de passagers
+            System.out.println(">>> Traitement Res ID: " + res.getId() + " | Passagers: " + res.getNbPassager() + " | Heure: " + res.getDateHeure());
+            assignerReservationAutomatiquement(res.getId());
+        }
+        System.out.println("--- FIN DU TRAITEMENT ---");
     }
 
     public boolean assignerReservationAutomatiquement(int reservationId) {
@@ -36,9 +43,11 @@ public class AssignmentService {
         Reservation res = resService.getReservationById(reservationId);
         if (res == null) return false;
 
-        // 1. CHERCHER UNE MISSION COMPATIBLE (Pooling existant)
+        // 1. CHERCHER LA MEILLEURE MISSION (La plus vide)
         int missionId = chercherMissionCompatible(res);
+        
         if (missionId != -1) {
+            // On réutilise tenterAjoutDansMission pour recalculer le trajet/distance
             if (tenterAjoutDansMission(missionId, res)) {
                 return true; 
             }
@@ -49,15 +58,29 @@ public class AssignmentService {
     }
 
     private int chercherMissionCompatible(Reservation res) {
-        String sql = "SELECT id FROM Mission WHERE ? >= heure_arrivee_aero AND ? <= heure_depart_prevu ORDER BY id ASC"; 
+        String sql = 
+            "SELECT m.id, (v.nbPlaces - COALESCE(SUM(r.nbPassager), 0)) as places_libres " +
+            "FROM Mission m " +
+            "JOIN Vehicule v ON m.id_vehicule = v.id " +
+            "LEFT JOIN Vehicules_Reservations vr ON m.id = vr.id_mission " +
+            "LEFT JOIN Reservation r ON vr.id_reservation = r.id " +
+            "WHERE ? >= m.heure_arrivee_aero AND ? <= m.heure_depart_prevu " +
+            "GROUP BY m.id, v.nbPlaces " +
+            "HAVING (v.nbPlaces - COALESCE(SUM(r.nbPassager), 0)) >= ? " + 
+            "ORDER BY places_libres ASC, m.id ASC"; // Ajout de m.id ASC pour la stabilité
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
             Timestamp ts = Timestamp.valueOf(res.getDateHeure());
             pstmt.setTimestamp(1, ts);
             pstmt.setTimestamp(2, ts);
+            pstmt.setInt(3, res.getNbPassager());
+
             ResultSet rs = pstmt.executeQuery();
-            return rs.next() ? rs.getInt(1) : -1;
-        } catch (Exception e) { return -1; }
+            if (rs.next()) return rs.getInt("id");
+        } catch (Exception e) { e.printStackTrace(); }
+        return -1;
     }
 
     private boolean tenterAjoutDansMission(int missionId, Reservation nouvelleRes) {

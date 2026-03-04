@@ -191,7 +191,7 @@
 
     <script>
         function startAutoAssign() {
-            if (confirm("Lancer l'assignation automatique ?\n\nL'algorithme va :\n1. Grouper les passagers selon les fenêtres de 15min.\n2. Vérifier la disponibilité réelle des véhicules.\n3. Garantir qu'aucun trajet ne chevauche une mission future.")) {
+            if (confirm("Lancer l'assignation automatique ?\n\nL'algorithme va :\n1. Grouper les passagers selon les fenêtres d'attentes.\n2. Vérifier la disponibilité réelle des véhicules.\n3. Garantir qu'aucun trajet ne chevauche une mission future.")) {
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 return true;
             }

@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class AssignmentService {
 
@@ -22,8 +23,7 @@ public class AssignmentService {
         Reservation res = resService.getReservationById(reservationId);
         if (res == null) return false;
 
-        // 1. CHERCHER UNE MISSION COMPATIBLE (Pooling)
-        // On cherche une mission dont l'heure de départ n'est pas encore passée
+        // 1. CHERCHER UNE MISSION COMPATIBLE (Pooling existant)
         int missionId = chercherMissionCompatible(res);
         if (missionId != -1) {
             if (tenterAjoutDansMission(missionId, res)) {
@@ -31,16 +31,14 @@ public class AssignmentService {
             }
         }
 
-        // 2. CRÉER UNE NOUVELLE MISSION
+        // 2. SINON, CRÉER UNE NOUVELLE MISSION
         return creerNouvelleMission(res);
     }
 
     /**
-     * CHERCHE UNE MISSION DONT L'HEURE DE DÉPART EST SUPÉRIEURE À L'HEURE DE RÉSERVATION
+     * Vérifie si une mission peut accueillir le client au moment de son arrivée
      */
     private int chercherMissionCompatible(Reservation res) {
-        // La mission est compatible si le client arrive pendant que le véhicule 
-        // est encore à l'aéroport (entre son arrivée et son départ prévu).
         String sql = "SELECT id FROM Mission " +
                      "WHERE ? >= heure_arrivee_aero " +
                      "AND ? < heure_depart_prevu " +
@@ -56,36 +54,36 @@ public class AssignmentService {
     }
 
     /**
-     * TENTE D'AJOUTER LE PASSAGER ET RECALCULE LE RETOUR (LOCKING)
+     * Tente d'ajouter un passager à une mission existante et recalcule le circuit optimisé
      */
     private boolean tenterAjoutDansMission(int missionId, Reservation nouvelleRes) {
         try {
             int vehiculeId = getVehiculeDeMission(missionId);
             List<Reservation> passagersActuels = getReservationsDeLaMission(missionId);
             
-            // Vérification capacité véhicule
+            // Vérification capacité
             int placesPrises = passagersActuels.stream().mapToInt(Reservation::getNbPassager).sum();
             if (placesPrises + nouvelleRes.getNbPassager() > getCapaciteVehicule(vehiculeId)) return false;
 
-            // Recalculer le trajet (Circuit avec le nouveau lieu)
-            List<Integer> lieux = new ArrayList<>();
-            for (Reservation r : passagersActuels) lieux.add(r.getIdLieu());
-            lieux.add(nouvelleRes.getIdLieu());
+            // Recalculer le trajet avec le nouveau lieu (Circuit Optimisé)
+            List<Integer> lieuxAVisiter = passagersActuels.stream()
+                    .map(Reservation::getIdLieu)
+                    .collect(Collectors.toList());
+            lieuxAVisiter.add(nouvelleRes.getIdLieu());
 
-            double distance = calculerDistanceCircuit(lieux);
+            double distance = calculerDistanceCircuit(lieuxAVisiter);
             double vitesse = Double.parseDouble(getParametre("VITESSE_MOYENNE_KMH", "40"));
             int dureeTrajet = (int) ((distance / vitesse) * 60);
 
             LocalDateTime departPrevu = getHeureDepartMission(missionId);
             LocalDateTime nouveauRetour = departPrevu.plusMinutes(dureeTrajet);
 
-            // VÉRIFICATION DU LOCK (La mission suivante est-elle impactée ?)
+            // Vérifier si le nouveau temps de retour n'empiète pas sur la mission suivante du véhicule
             LocalDateTime missionSuivante = getHeureDebutMissionSuivante(vehiculeId, departPrevu);
             if (missionSuivante != null && nouveauRetour.isAfter(missionSuivante)) {
                 return false; 
             }
 
-            // VALIDATION
             enregistrerAssignation(missionId, nouvelleRes.getId());
             updateRetourMission(missionId, nouveauRetour);
             return true;
@@ -93,26 +91,32 @@ public class AssignmentService {
     }
 
     /**
-     * CRÉE UNE MISSION BASÉE SUR LA DISPONIBILITÉ TEMPORELLE
+     * Crée une mission avec les règles de priorité : Capacité proche > Diesel > Random
      */
     private boolean creerNouvelleMission(Reservation res) {
+        // Un véhicule est disponible s'il n'est pas en mission à l'heure de la réservation
         List<Vehicule> vehicules = getVehiculesDisponibles(res.getDateHeure());
         
-        // On prend le véhicule le plus adapté (places suffisantes et plus petit gap)
+        // Application des règles 1, 2, 3 et 4
         Vehicule choisi = vehicules.stream()
             .filter(v -> v.getNbPlaces() >= res.getNbPassager())
-            .sorted(Comparator.comparingInt((Vehicule v) -> v.getNbPlaces() - res.getNbPassager()))
+            .sorted(Comparator.comparingInt((Vehicule v) -> v.getNbPlaces() - res.getNbPassager()) // Règle 2 : plus proche
+                .thenComparing((Vehicule v) -> v.getTypeCarburantLibelle().equalsIgnoreCase("Diesel") ? 0 : 1) // Règle 3 : Diesel
+                .thenComparing(v -> Math.random())) // Règle 4 : Random
             .findFirst().orElse(null);
 
         if (choisi != null) {
             try (Connection conn = DatabaseConnection.getConnection()) {
-                LocalDateTime arriveeAero = getHeureArriveeEffective(choisi.getId(), res.getDateHeure());
+                // RÈGLE 5 : Temps d'attente à partir de la réservation
                 int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
-                LocalDateTime departPrevu = arriveeAero.plusMinutes(minutesAttente);
+                LocalDateTime departPrevu = res.getDateHeure().plusMinutes(minutesAttente);
                 
                 double distance = calculerDistanceCircuit(List.of(res.getIdLieu()));
                 double vitesse = Double.parseDouble(getParametre("VITESSE_MOYENNE_KMH", "40"));
                 LocalDateTime retourPrevu = departPrevu.plusMinutes((int)((distance/vitesse)*60));
+
+                // L'heure d'arrivée réelle du véhicule à l'aéroport
+                LocalDateTime arriveeAero = getHeureArriveeEffective(choisi.getId(), res.getDateHeure());
 
                 String sqlM = "INSERT INTO Mission (id_vehicule, heure_arrivee_aero, heure_depart_prevu, heure_retour_prevu) " +
                               "VALUES (?, ?, ?, ?) RETURNING id";
@@ -133,28 +137,65 @@ public class AssignmentService {
         return false;
     }
 
-    // --- LOGIQUE DE CALCULS ET BDD ---
+    /**
+     * ALGORITHME DU PLUS PROCHE VOISIN (Greedy Circuit)
+     * Calcule : Aero -> Lieu A -> Lieu B (le plus proche de A) -> ... -> Aero
+     */
+    private double calculerDistanceCircuit(List<Integer> lieuxIds) {
+        if (lieuxIds == null || lieuxIds.isEmpty()) return 0;
+        
+        List<Integer> aVisiter = new ArrayList<>(lieuxIds);
+        double distanceTotale = 0;
+        int pointActuel = AEROPORT_ID;
 
-    private LocalDateTime getHeureArriveeEffective(int vehiculeId, LocalDateTime heureResa) {
-        LocalDateTime finDerniere = getFinDerniereMission(vehiculeId, heureResa);
-        return (finDerniere == null) ? heureResa : finDerniere;
+        
+
+        while (!aVisiter.isEmpty()) {
+            final int currentPos = pointActuel;
+            // Trouver le lieu restant le plus proche de la position actuelle
+            int prochainLieu = aVisiter.stream()
+                .min(Comparator.comparingDouble(dest -> getDistance(currentPos, dest)))
+                .get();
+
+            distanceTotale += getDistance(pointActuel, prochainLieu);
+            pointActuel = prochainLieu;
+            aVisiter.remove(Integer.valueOf(prochainLieu));
+        }
+
+        // Retour final à l'aéroport
+        distanceTotale += getDistance(pointActuel, AEROPORT_ID);
+        
+        return distanceTotale;
     }
 
-    private LocalDateTime getFinDerniereMission(int vehiculeId, LocalDateTime avantT) {
+    // --- ACCÈS AUX DONNÉES ---
+
+    private double getDistance(int from, int to) {
+        if (from == to) return 0;
+        String sql = "SELECT kilometer FROM Distances WHERE (id_from=? AND id_to=?) OR (id_from=? AND id_to=?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, from); pstmt.setInt(2, to);
+            pstmt.setInt(3, to);   pstmt.setInt(4, from);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next() ? rs.getDouble(1) : 15.0; // 15km par défaut si non trouvé
+        } catch (Exception e) { return 15.0; }
+    }
+
+    private LocalDateTime getHeureArriveeEffective(int vehiculeId, LocalDateTime heureResa) {
         String sql = "SELECT MAX(heure_retour_prevu) FROM Mission WHERE id_vehicule = ? AND heure_retour_prevu <= ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, vehiculeId);
-            pstmt.setTimestamp(2, Timestamp.valueOf(avantT));
+            pstmt.setTimestamp(2, Timestamp.valueOf(heureResa));
             ResultSet rs = pstmt.executeQuery();
             if (rs.next() && rs.getTimestamp(1) != null) return rs.getTimestamp(1).toLocalDateTime();
         } catch (Exception e) {}
-        return null;
+        return heureResa; // Si aucune mission passée, il est considéré dispo à l'heure de la résa
     }
 
     private List<Vehicule> getVehiculesDisponibles(LocalDateTime t) {
         List<Vehicule> list = new ArrayList<>();
-        // Un véhicule est dispo si l'heure T n'est pas dans un intervalle de mission existant
         String sql = "SELECT v.*, tc.libelle as carb FROM Vehicule v " +
                      "JOIN TypeCarburant tc ON v.typeCarburant_id = tc.id " +
                      "WHERE v.id NOT IN (" +
@@ -174,29 +215,6 @@ public class AssignmentService {
             }
         } catch (Exception e) {}
         return list;
-    }
-
-    private double calculerDistanceCircuit(List<Integer> lieuxIds) {
-        double dist = 0; 
-        int current = AEROPORT_ID;
-        for (int id : lieuxIds) { 
-            dist += getDistance(current, id); 
-            current = id; 
-        }
-        dist += getDistance(current, AEROPORT_ID); // Retour à l'aéroport
-        return dist;
-    }
-
-    private double getDistance(int from, int to) {
-        if (from == to) return 0;
-        String sql = "SELECT kilometer FROM Distances WHERE (id_from=? AND id_to=?) OR (id_from=? AND id_to=?)";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, from); pstmt.setInt(2, to);
-            pstmt.setInt(3, to);   pstmt.setInt(4, from);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next() ? rs.getDouble(1) : 15.0;
-        } catch (Exception e) { return 15.0; }
     }
 
     private void enregistrerAssignation(int mId, int rId) {

@@ -134,10 +134,11 @@
                             <div class="card-title-icon"><i class="fas fa-list"></i></div>
                             Liste des Véhicules
                         </div>
+                        <% String searchValue = (String) request.getAttribute("search"); %>
                         <div class="search-bar" style="margin-bottom: 0;">
                             <div class="search-input-wrapper">
                                 <span class="search-icon"><i class="fas fa-search"></i></span>
-                                <input type="text" id="searchInput" class="search-input" placeholder="Rechercher un véhicule...">
+                                <input type="text" id="searchInput" class="search-input" value="<%= searchValue != null ? searchValue : "" %>" placeholder="Rechercher un véhicule...">
                             </div>
                             <button class="btn btn-secondary" onclick="searchVehicules()">Rechercher</button>
                         </div>
@@ -371,12 +372,31 @@
                 window.location.href = '${pageContext.request.contextPath}/vehicule/list';
             }
         }
+
+        function filterVehicleTableDynamically() {
+            const input = document.getElementById('searchInput');
+            const query = input.value.trim().toLowerCase();
+            const rows = document.querySelectorAll('.table tbody tr');
+
+            if (!rows.length) {
+                return;
+            }
+
+            rows.forEach((row) => {
+                const rowText = row.textContent.toLowerCase();
+                row.style.display = rowText.includes(query) ? '' : 'none';
+            });
+        }
         
         document.getElementById('searchInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 searchVehicules();
             }
         });
+
+        document.getElementById('searchInput').addEventListener('input', filterVehicleTableDynamically);
+
+        filterVehicleTableDynamically();
 
         // Auto-dismiss alerts
         setTimeout(() => {

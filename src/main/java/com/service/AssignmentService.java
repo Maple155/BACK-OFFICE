@@ -49,7 +49,7 @@ public class AssignmentService {
     }
 
     private int chercherMissionCompatible(Reservation res) {
-        String sql = "SELECT id FROM Mission WHERE ? >= heure_arrivee_aero AND ? < heure_depart_prevu ORDER BY id ASC"; 
+        String sql = "SELECT id FROM Mission WHERE ? >= heure_arrivee_aero AND ? <= heure_depart_prevu ORDER BY id ASC"; 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             Timestamp ts = Timestamp.valueOf(res.getDateHeure());

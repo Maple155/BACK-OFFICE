@@ -11,6 +11,6 @@ Fonctionalités :
                  res 3 : 8h 30 
 
                  -> depart initial : 8h fa depart farany 8h 30 raha 30 min ny temps d'attente
-        . Raha ohatra oe res 1 ihany dia depart 8h nefa 30 min ny temps d'attente au lieu de 8h 30 lasa tonga dia 8h satria tsy misy endrasana tsony 
+        . Raha ohatra oe reservation 1 ihany dia depart 8h nefa 30 min ny temps d'attente au lieu de 8h 30 lasa tonga dia 8h satria tsy misy endrasana tsony 
         . Miara miala daoly ny vehicule raha meme temps d'attente sy miara miala       
             

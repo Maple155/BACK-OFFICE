@@ -12,8 +12,6 @@ Fonctionalité :
                     
         .   Izay vehicule moins de trajet no candidat voalohany (priorité) sinon manaraka ny regles taloha 
 
-        .   Raha misy 2 ou + moins de trajet dia diesel sinon random 
-
         .   Vol tonga voalohany no misy temps d'attente voalohany izany oe :
             
             Raha ny vol tonga teo am aeroport tamin' ny 8h, 8h 15, 9h, 9h 30 dia ilay 8h + temps d'attente izy 

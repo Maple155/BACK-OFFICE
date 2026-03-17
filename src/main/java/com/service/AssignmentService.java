@@ -43,28 +43,44 @@ public class AssignmentService {
         Reservation res = resService.getReservationById(reservationId);
         if (res == null) return false;
 
+        int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
+        LocalDateTime debutVague = getDebutVagueDuJour(res.getDateHeure());
+
+        // Une seule vague/journée : si la fenêtre d'attente est terminée, aucune nouvelle assignation.
+        if (debutVague != null && res.getDateHeure().isAfter(debutVague.plusMinutes(minutesAttente))) {
+            return false;
+        }
+
         // 1. CHERCHER LA MEILLEURE MISSION (La plus vide)
         int missionId = chercherMissionCompatible(res);
         
         if (missionId != -1) {
             // On réutilise tenterAjoutDansMission pour recalculer le trajet/distance
             if (tenterAjoutDansMission(missionId, res)) {
+                LocalDateTime vague = (debutVague != null) ? debutVague : res.getDateHeure();
+                synchroniserDepartEtRetoursVague(vague);
                 return true; 
             }
         }
 
         // 2. SINON, CRÉER UNE NOUVELLE MISSION
-        return creerNouvelleMission(res);
+        boolean cree = creerNouvelleMission(res);
+        if (cree) {
+            LocalDateTime vague = (debutVague != null) ? debutVague : res.getDateHeure();
+            synchroniserDepartEtRetoursVague(vague);
+        }
+        return cree;
     }
 
     private int chercherMissionCompatible(Reservation res) {
+        int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
         String sql = 
             "SELECT m.id, (v.nbPlaces - COALESCE(SUM(r.nbPassager), 0)) as places_libres " +
             "FROM Mission m " +
             "JOIN Vehicule v ON m.id_vehicule = v.id " +
             "LEFT JOIN Vehicules_Reservations vr ON m.id = vr.id_mission " +
             "LEFT JOIN Reservation r ON vr.id_reservation = r.id " +
-            "WHERE ? >= m.heure_arrivee_aero AND ? <= m.heure_depart_prevu " +
+            "WHERE ? >= m.heure_arrivee_aero AND ? <= (m.heure_arrivee_aero + (? * INTERVAL '1 minute')) " +
             "GROUP BY m.id, v.nbPlaces " +
             "HAVING (v.nbPlaces - COALESCE(SUM(r.nbPassager), 0)) >= ? " + 
             "ORDER BY places_libres ASC, m.id ASC"; // Ajout de m.id ASC pour la stabilité
@@ -75,7 +91,8 @@ public class AssignmentService {
             Timestamp ts = Timestamp.valueOf(res.getDateHeure());
             pstmt.setTimestamp(1, ts);
             pstmt.setTimestamp(2, ts);
-            pstmt.setInt(3, res.getNbPassager());
+            pstmt.setInt(3, minutesAttente);
+            pstmt.setInt(4, res.getNbPassager());
 
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) return rs.getInt("id");
@@ -109,7 +126,16 @@ public class AssignmentService {
     }
 
     private boolean creerNouvelleMission(Reservation res) {
-        List<Vehicule> vehicules = getVehiculesDisponibles(res.getDateHeure());
+        int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
+        LocalDateTime debutVague = getDebutVagueDuJour(res.getDateHeure());
+        LocalDateTime ancreVague = (debutVague != null) ? debutVague : res.getDateHeure();
+
+        // Une seule vague : plus de création de mission hors fenêtre d'attente.
+        if (res.getDateHeure().isAfter(ancreVague.plusMinutes(minutesAttente))) {
+            return false;
+        }
+
+        List<Vehicule> vehicules = getVehiculesDisponibles(ancreVague);
         
         Vehicule choisi = vehicules.stream()
             .filter(v -> v.getNbPlaces() >= res.getNbPassager())
@@ -120,13 +146,12 @@ public class AssignmentService {
 
         if (choisi != null) {
             try (Connection conn = DatabaseConnection.getConnection()) {
-                int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
-                LocalDateTime departPrevu = res.getDateHeure().plusMinutes(minutesAttente);
+                LocalDateTime departPrevu = ancreVague.plusMinutes(minutesAttente);
                 
                 double distance = calculerDistanceCircuit(List.of(res.getIdLieu()));
                 double vitesse = Double.parseDouble(getParametre("VITESSE_MOYENNE_KMH", "40"));
                 LocalDateTime retourPrevu = departPrevu.plusMinutes((int)((distance/vitesse)*60));
-                LocalDateTime arriveeAero = getHeureArriveeEffective(choisi.getId(), res.getDateHeure());
+                LocalDateTime arriveeAero = ancreVague;
 
                 String sqlM = "INSERT INTO Mission (id_vehicule, heure_arrivee_aero, heure_depart_prevu, heure_retour_prevu) VALUES (?, ?, ?, ?) RETURNING id";
                 PreparedStatement pstmtM = conn.prepareStatement(sqlM, Statement.RETURN_GENERATED_KEYS);
@@ -144,6 +169,26 @@ public class AssignmentService {
             } catch (Exception e) { e.printStackTrace(); }
         }
         return false;
+    }
+
+    private void synchroniserDepartEtRetoursVague(LocalDateTime debutVague) {
+        int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
+        LocalDateTime finAttenteTheorique = debutVague.plusMinutes(minutesAttente);
+        LocalDateTime departReel = getDerniereReservationDeVagueAvantOuEgale(debutVague, finAttenteTheorique);
+        if (departReel == null) {
+            departReel = finAttenteTheorique;
+        }
+
+        List<Integer> missionIds = getMissionIdsDeVague(debutVague);
+        double vitesse = Double.parseDouble(getParametre("VITESSE_MOYENNE_KMH", "40"));
+
+        for (Integer missionId : missionIds) {
+            List<Reservation> reservations = getReservationsDeLaMission(missionId);
+            List<Integer> lieux = reservations.stream().map(Reservation::getIdLieu).collect(Collectors.toList());
+            double distance = calculerDistanceCircuit(lieux);
+            LocalDateTime retour = departReel.plusMinutes((int)((distance / vitesse) * 60));
+            updateMissionDepartEtRetour(missionId, departReel, retour);
+        }
     }
 
     /**
@@ -257,6 +302,54 @@ public class AssignmentService {
             pstmt.setInt(2, mId);
             pstmt.executeUpdate();
         } catch (Exception e) {}
+    }
+
+    private void updateMissionDepartEtRetour(int mId, LocalDateTime depart, LocalDateTime retour) {
+        String sql = "UPDATE Mission SET heure_depart_prevu = ?, heure_retour_prevu = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(depart));
+            pstmt.setTimestamp(2, Timestamp.valueOf(retour));
+            pstmt.setInt(3, mId);
+            pstmt.executeUpdate();
+        } catch (Exception e) {}
+    }
+
+    private LocalDateTime getDebutVagueDuJour(LocalDateTime reference) {
+        String sql = "SELECT MIN(heure_arrivee_aero) FROM Mission WHERE DATE(heure_arrivee_aero) = DATE(?)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(reference));
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next() && rs.getTimestamp(1) != null) return rs.getTimestamp(1).toLocalDateTime();
+        } catch (Exception e) {}
+        return null;
+    }
+
+    private LocalDateTime getDerniereReservationDeVagueAvantOuEgale(LocalDateTime debut, LocalDateTime finTheorique) {
+        String sql = "SELECT MAX(r.dateHeure) " +
+                     "FROM Reservation r " +
+                     "JOIN Vehicules_Reservations vr ON r.id = vr.id_reservation " +
+                     "JOIN Mission m ON m.id = vr.id_mission " +
+                     "WHERE m.heure_arrivee_aero = ? AND r.dateHeure <= ?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(debut));
+            pstmt.setTimestamp(2, Timestamp.valueOf(finTheorique));
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next() && rs.getTimestamp(1) != null) return rs.getTimestamp(1).toLocalDateTime();
+        } catch (Exception e) {}
+        return null;
+    }
+
+    private List<Integer> getMissionIdsDeVague(LocalDateTime debutVague) {
+        List<Integer> missionIds = new ArrayList<>();
+        String sql = "SELECT id FROM Mission WHERE heure_arrivee_aero = ?";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(debutVague));
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                missionIds.add(rs.getInt("id"));
+            }
+        } catch (Exception e) {}
+        return missionIds;
     }
 
     private LocalDateTime getHeureDebutMissionSuivante(int vId, LocalDateTime t) {

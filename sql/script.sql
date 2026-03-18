@@ -65,9 +65,10 @@ CREATE TABLE Mission (
 
 -- 6. Liaison
 CREATE TABLE Vehicules_Reservations (
+    id SERIAL PRIMARY KEY, -- Clé simple pour plus de souplesse
     id_mission INT NOT NULL REFERENCES Mission(id) ON DELETE CASCADE,
     id_reservation INT NOT NULL REFERENCES Reservation(id) ON DELETE CASCADE,
-    PRIMARY KEY (id_mission, id_reservation)
+    nb_passagers_pris INT NOT NULL CHECK (nb_passagers_pris > 0)
 );
 
 -- 7. Tokens
@@ -81,3 +82,5 @@ CREATE TABLE Tokens (
 CREATE INDEX idx_reservation_dateHeure ON Reservation(dateHeure);
 CREATE INDEX idx_mission_depart ON Mission(heure_depart_prevu);
 CREATE INDEX idx_mission_retour ON Mission(heure_retour_prevu);
+CREATE INDEX idx_vr_mission ON Vehicules_Reservations(id_mission);
+CREATE INDEX idx_vr_reservation ON Vehicules_Reservations(id_reservation);

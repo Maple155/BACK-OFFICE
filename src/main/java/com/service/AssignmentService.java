@@ -14,7 +14,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+class MissionCapacite {
+    int id;
+    int placesLibres;
 
+    public MissionCapacite(int id, int placesLibres) {
+        this.id = id;
+        this.placesLibres = placesLibres;
+    }
+}
 public class AssignmentService {
 
     private static final int AEROPORT_ID = 1;
@@ -62,31 +70,158 @@ public class AssignmentService {
         Reservation res = resService.getReservationById(reservationId);
         if (res == null) return false;
 
-        // 1) Priorité: tenter d'ajouter la réservation dans une mission de la même vague
-        // encore "ouverte" (départ pas encore passé) et avec capacité disponible.
+        // 1) Tentative classique (un seul véhicule)
         int missionId = chercherMissionCompatible(res);
-        
         if (missionId != -1) {
-            // On réutilise tenterAjoutDansMission pour recalculer le trajet/distance
             if (tenterAjoutDansMission(missionId, res)) {
-                LocalDateTime vague = getHeureArriveeAeroMission(missionId);
-                if (vague == null) {
-                    vague = res.getDateHeure();
-                }
-                synchroniserDepartEtRetoursVague(vague);
+                synchroniserDepartEtRetoursVague(getHeureArriveeAeroMission(missionId));
                 return true; 
             }
         }
 
-        // 2) Sinon, créer une nouvelle mission en choisissant le meilleur véhicule disponible.
-        boolean cree = creerNouvelleMission(res);
-        if (cree) {
-            // Synchronise la vague réellement active pour l'heure de cette réservation.
+        // 2) Nouvelle mission (un seul véhicule neuf)
+        if (creerNouvelleMission(res)) {
             synchroniserDepartEtRetoursVague(determinerAncreVague(res.getDateHeure()));
+            return true;
         }
-        return cree;
-    }
 
+        // 3) NOUVEAU : Répartition sur plusieurs véhicules
+        System.out.println("Capacité insuffisante pour un seul véhicule. Tentative de répartition pour Res ID: " + res.getId());
+        return tenterRepartitionPassagers(res);
+    }
+    private boolean tenterRepartitionPassagers(Reservation res) {
+        int passagersRestants = res.getNbPassager();
+        LocalDateTime ancreVague = determinerAncreVague(res.getDateHeure());
+        int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
+        LocalDateTime finVague = ancreVague.plusMinutes(minutesAttente);
+
+        // 1. On remplit d'abord les trous dans les missions existantes
+        List<MissionCapacite> missions = getMissionsOuvertesDeLaVague(ancreVague, finVague);
+        for (MissionCapacite mc : missions) {
+            if (passagersRestants <= 0) break;
+            int aPrendre = Math.min(passagersRestants, mc.placesLibres);
+            enregistrerAssignationPartielle(mc.id, res.getId(), aPrendre);
+            passagersRestants -= aPrendre;
+        }
+
+        // 2. Tant qu'il reste du monde, on crée de nouvelles missions
+        while (passagersRestants > 0) {
+            Vehicule v = chercherMeilleurVehiculePourSplit(ancreVague, finVague);
+            if (v == null) break; // Plus aucun véhicule de libre !
+
+            int mId = creerMissionVide(v.getId(), ancreVague);
+            if (mId != -1) {
+                int aPrendre = Math.min(passagersRestants, v.getNbPlaces());
+                enregistrerAssignationPartielle(mId, res.getId(), aPrendre);
+                passagersRestants -= aPrendre;
+            } else {
+                break; 
+            }
+        }
+
+        // 3. S'il reste encore du monde (flotte saturée), on crée le reliquat
+        if (passagersRestants > 0) {
+            dupliquerReservationPourReliquat(res, passagersRestants);
+        }
+
+        synchroniserDepartEtRetoursVague(ancreVague);
+        return true;
+    }
+    private Vehicule chercherMeilleurVehiculePourSplit(LocalDateTime ancre, LocalDateTime fin) {
+        List<Vehicule> candidats = new ArrayList<>();
+        // On récupère le libellé carburant pour le tri Diesel
+        String sql = "SELECT v.*, tc.libelle as carb FROM Vehicule v " +
+                    "JOIN TypeCarburant tc ON v.typeCarburant_id = tc.id " +
+                    "WHERE v.id NOT IN (SELECT id_vehicule FROM Mission WHERE heure_arrivee_aero = ?)";
+        
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(ancre));
+            ResultSet rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                int vId = rs.getInt("id");
+                LocalDateTime dispo = getHeureDisponibiliteVehiculePourVague(vId, ancre, fin);
+                
+                if (dispo != null && !dispo.isAfter(fin)) {
+                    Vehicule v = new Vehicule();
+                    v.setId(vId);
+                    v.setNbPlaces(rs.getInt("nbPlaces"));
+                    v.setTypeCarburantLibelle(rs.getString("carb"));
+                    candidats.add(v);
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+
+        if (candidats.isEmpty()) return null;
+
+        // --- LE TRI MULTI-CRITÈRES ---
+        return candidats.stream().max(
+            Comparator.comparingInt(Vehicule::getNbPlaces) // 1. Plus de places
+            .thenComparing(
+                (Vehicule v) -> getNombreTrajetsVehiculePourJour(v.getId(), ancre), 
+                Comparator.reverseOrder() // 2. Moins de missions (reverse car c'est un .max)
+            )
+            .thenComparing(
+                (Vehicule v) -> v.getTypeCarburantLibelle().equalsIgnoreCase("Diesel") ? 1 : 0
+            )
+        ).orElse(null);
+    }
+    private List<MissionCapacite> getMissionsOuvertesDeLaVague(LocalDateTime ancre, LocalDateTime fin) {
+        List<MissionCapacite> list = new ArrayList<>();
+        String sql = "SELECT m.id, (v.nbPlaces - COALESCE(SUM(vr.nb_passagers_pris), 0)) as libres " +
+                    "FROM Mission m " +
+                    "JOIN Vehicule v ON m.id_vehicule = v.id " +
+                    "LEFT JOIN Vehicules_Reservations vr ON m.id = vr.id_mission " +
+                    "WHERE m.heure_arrivee_aero = ? " +
+                    "GROUP BY m.id, v.nbPlaces " +
+                    "HAVING (v.nbPlaces - COALESCE(SUM(vr.nb_passagers_pris), 0)) > 0";
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(ancre));
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                list.add(new MissionCapacite(rs.getInt("id"), rs.getInt("libres")));
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return list;
+    }
+    private int creerMissionVide(int vehiculeId, LocalDateTime ancre) {
+        String sql = "INSERT INTO Mission (id_vehicule, heure_arrivee_aero, heure_depart_prevu, heure_retour_prevu) " +
+                    "VALUES (?, ?, ?, ?) RETURNING id";
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, vehiculeId);
+            pstmt.setTimestamp(2, Timestamp.valueOf(ancre));
+            pstmt.setTimestamp(3, Timestamp.valueOf(ancre)); // Sera mis à jour par synchroniser...
+            pstmt.setTimestamp(4, Timestamp.valueOf(ancre.plusMinutes(30))); 
+            
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (Exception e) { e.printStackTrace(); }
+        return -1;
+    }
+    private void enregistrerAssignationPartielle(int mId, int rId, int nb) {
+        String sql = "INSERT INTO Vehicules_Reservations (id_mission, id_reservation, nb_passagers_pris) VALUES (?, ?, ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, mId);
+            pstmt.setInt(2, rId);
+            pstmt.setInt(3, nb);
+            pstmt.executeUpdate();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+    private void dupliquerReservationPourReliquat(Reservation res, int reste) {
+        String sql = "INSERT INTO Reservation (id_lieu, client, nbPassager, dateHeure) VALUES (?, ?, ?, ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, res.getIdLieu());
+            pstmt.setString(2, res.getClient() + " (Reliquat)");
+            pstmt.setInt(3, reste);
+            pstmt.setTimestamp(4, Timestamp.valueOf(res.getDateHeure()));
+            pstmt.executeUpdate();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
     private int chercherMissionCompatible(Reservation res) {
         int minutesAttente = Integer.parseInt(getParametre("TEMPS_ATTENTE_MIN", "15"));
         // Mission compatible si:
@@ -138,7 +273,7 @@ public class AssignmentService {
             LocalDateTime missionSuivante = getHeureDebutMissionSuivante(vehiculeId, departPrevu);
             if (missionSuivante != null && nouveauRetour.isAfter(missionSuivante)) return false; 
 
-            enregistrerAssignation(missionId, nouvelleRes.getId());
+            enregistrerAssignation(missionId, nouvelleRes.getId(), nouvelleRes.getNbPassager());
             updateRetourMission(missionId, nouveauRetour);
             return true;
         } catch (Exception e) { return false; }
@@ -197,9 +332,9 @@ public class AssignmentService {
 
         List<Vehicule> candidatsTries = candidats.stream()
             .sorted(Comparator
-                .comparingInt((Vehicule v) -> trajetsParVehicule.getOrDefault(v.getId(), 0))
-                .thenComparing((Vehicule v) -> v.getNbPlaces() >= capaciteCible ? 0 : 1)
+                .comparing((Vehicule v) -> v.getNbPlaces() >= capaciteCible ? 0 : 1)
                 .thenComparingInt(v -> Math.abs(v.getNbPlaces() - res.getNbPassager()))
+                .thenComparingInt((Vehicule v) -> trajetsParVehicule.getOrDefault(v.getId(), 0))
                 .thenComparing((Vehicule v) -> v.getTypeCarburantLibelle().equalsIgnoreCase("Diesel") ? 0 : 1)
                 .thenComparingInt(Vehicule::getId))
             .collect(Collectors.toList());
@@ -230,7 +365,7 @@ public class AssignmentService {
                 pstmtM.execute();
                 ResultSet rs = pstmtM.getGeneratedKeys();
                 if (rs.next()) {
-                    enregistrerAssignation(rs.getInt(1), res.getId());
+                    enregistrerAssignation(rs.getInt(1), res.getId(), res.getNbPassager());
                     return true;
                 }
             } catch (Exception e) {
@@ -551,10 +686,10 @@ public class AssignmentService {
         return null;
     }
 
-    private void enregistrerAssignation(int mId, int rId) {
-        String sql = "INSERT INTO Vehicules_Reservations (id_mission, id_reservation) VALUES (?, ?)";
+    private void enregistrerAssignation(int mId, int rId, int nbPassagersPris) {
+        String sql = "INSERT INTO Vehicules_Reservations (id_mission, id_reservation, nb_passagers_pris) VALUES (?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, mId); pstmt.setInt(2, rId);
+            pstmt.setInt(1, mId); pstmt.setInt(2, rId); pstmt.setInt(3, nbPassagersPris);
             pstmt.executeUpdate();
         } catch (Exception e) {}
     }

@@ -113,16 +113,23 @@ public class ReservationService {
      * Récupère les réservations non encore liées à une mission.
      */
     public List<Reservation> getUnassignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
+        return getUnassignedReservationsByDateTimeRange(startDate.atStartOfDay(), endDate.atTime(23, 59, 59));
+    }
+
+    /**
+     * Récupère les réservations non assignées dans un intervalle date+heure précis.
+     */
+    public List<Reservation> getUnassignedReservationsByDateTimeRange(LocalDateTime startDateTime, LocalDateTime endDateTime) {
         List<Reservation> reservations = new ArrayList<>();
         String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
                  "JOIN Lieu l ON r.id_lieu = l.id " +
-                 "WHERE DATE(r.dateHeure) BETWEEN ? AND ? " +
+                 "WHERE r.dateHeure BETWEEN ? AND ? " +
                  "AND r.id NOT IN (SELECT id_reservation FROM Vehicules_Reservations) " +
                  "ORDER BY r.dateHeure";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setDate(1, Date.valueOf(startDate));
-            pstmt.setDate(2, Date.valueOf(endDate));
+            pstmt.setTimestamp(1, Timestamp.valueOf(startDateTime));
+            pstmt.setTimestamp(2, Timestamp.valueOf(endDateTime));
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
                 reservations.add(mapResultSetToReservation(rs));

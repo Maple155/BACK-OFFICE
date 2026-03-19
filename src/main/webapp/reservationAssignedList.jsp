@@ -127,7 +127,7 @@
                                                     <td><span class="text-muted">#<%= reservation.get("id") %></span></td>
                                                     <td><strong><%= reservation.get("client") %></strong></td>
                                                     <td><span class="badge badge-secondary"><%= reservation.get("lieuCode") != null ? reservation.get("lieuCode") : "N/A" %></span></td>
-                                                    <td><span class="badge badge-info"><%= reservation.get("nbPassager") %> pers.</span></td>
+                                                    <td><span class="badge badge-info"><%= reservation.get("nbPris") %> / <%= reservation.get("nbPassager") %> pers.</span></td>
                                                     <td><%= reservation.get("dateHeure") != null ? reservation.get("dateHeure") : "N/A" %></td>
                                                     <td><%= reservation.get("heureDepart") != null ? reservation.get("heureDepart") : "N/A" %></td>
                                                     <td><%= reservation.get("heureRetour") != null ? reservation.get("heureRetour") : "N/A" %></td>

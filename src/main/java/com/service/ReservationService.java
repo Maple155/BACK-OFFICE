@@ -146,7 +146,7 @@ public class ReservationService {
     public List<Map<String, Object>> getAssignedReservationsByDateRange(LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> rows = new ArrayList<>();
         String sql =
-                "SELECT v.reference as vehicule, m.heure_depart_prevu, m.heure_retour_prevu, " +
+                "SELECT vr.nb_passagers_pris as nb_pris,v.reference as vehicule, m.heure_depart_prevu, m.heure_retour_prevu, " +
                 "r.id, r.client, r.nbPassager, r.dateHeure, l.code as lieu_code " +
                 "FROM Reservation r " +
                 "JOIN Vehicules_Reservations vr ON r.id = vr.id_reservation " +
@@ -172,6 +172,7 @@ public class ReservationService {
                 row.put("client", rs.getString("client"));
                 row.put("nbPassager", rs.getInt("nbPassager"));
                 row.put("lieuCode", rs.getString("lieu_code"));
+                row.put("nbPris", rs.getInt("nb_pris"));
                 
                 LocalDateTime dateHeure = rs.getTimestamp("dateHeure").toLocalDateTime();
                 LocalDateTime depart = rs.getTimestamp("heure_depart_prevu").toLocalDateTime();
@@ -222,5 +223,32 @@ public class ReservationService {
             res.setDateHeure(ts.toLocalDateTime());
         }
         return res;
+    }
+    /**
+     * Récupère TOUTES les réservations non assignées qui auraient dû être traitées 
+     * avant ou pendant la fenêtre de temps indiquée.
+     * (Inclut les reliquats créés en base et les oubliés des vagues précédentes)
+     */
+    public List<Reservation> getUnassignedBeforeOrAt(LocalDateTime limitDateTime) {
+        List<Reservation> reservations = new ArrayList<>();
+        // On sélectionne les résas qui n'ont AUCUNE entrée dans Vehicules_Reservations
+        // et dont l'heure de rendez-vous est passée ou égale à la limite de la vague.
+        String sql = "SELECT r.*, l.code as lieu_code FROM Reservation r " +
+                    "JOIN Lieu l ON r.id_lieu = l.id " +
+                    "WHERE r.id NOT IN (SELECT id_reservation FROM Vehicules_Reservations) " +
+                    "AND r.dateHeure <= ? " +
+                    "ORDER BY r.dateHeure ASC"; // Chronologique pour traiter les plus vieux d'abord
+
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(limitDateTime));
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                reservations.add(mapResultSetToReservation(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return reservations;
     }
 }

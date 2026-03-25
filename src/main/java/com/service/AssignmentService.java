@@ -105,11 +105,17 @@ public class AssignmentService {
         }
     }
 
-    private void traiterFluxPrioritaire(LocalDateTime ancreVague, LocalDateTime finVague) {
+   private void traiterFluxPrioritaire(LocalDateTime ancreVague, LocalDateTime finVague) {
         while (!this.ReservationAVider.isEmpty()) {
             boolean progression = false;
 
-            // 1) Priorité aux véhicules non vides à remplir.
+            // --- LA SEULE MODIFICATION IMPORTANTE ---
+            // On trie pour que les plus gros groupes restants soient traités en priorité
+            // pour remplir les véhicules existants.
+            this.ReservationAVider.sort((r1, r2) -> 
+                Integer.compare(r2.nbPassagersRestants, r1.nbPassagersRestants));
+
+            // 1) Remplissage des véhicules déjà ouverts
             Iterator<MissionCapacite> missionsIterator = this.VehiculesNonVideARemplir.iterator();
             while (missionsIterator.hasNext()) {
                 MissionCapacite mission = missionsIterator.next();
@@ -118,10 +124,9 @@ public class AssignmentService {
                     continue;
                 }
 
+                // On cherche la résa qui fitte le mieux dans ces places libres
                 ReservationAVider reservationCandidate = trouverReservationPlusProche(mission.placesLibres);
-                if (reservationCandidate == null) {
-                    continue;
-                }
+                if (reservationCandidate == null) continue;
 
                 int nbPris = Math.min(mission.placesLibres, reservationCandidate.nbPassagersRestants);
                 enregistrerAssignationPartielle(mission.id, reservationCandidate.reservation.getId(), nbPris);
@@ -133,22 +138,18 @@ public class AssignmentService {
                 if (reservationCandidate.nbPassagersRestants <= 0) {
                     this.ReservationAVider.remove(reservationCandidate);
                 }
-                if (mission.placesLibres <= 0) {
-                    missionsIterator.remove();
-                }
+                if (mission.placesLibres <= 0) missionsIterator.remove();
             }
 
-            if (this.ReservationAVider.isEmpty()) {
-                break;
-            }
+            if (this.ReservationAVider.isEmpty()) break;
 
-            // 2) Priorité à la réservation partiellement vide à terminer.
+            // 2) Création d'un nouveau véhicule pour la plus grosse réservation restante
+            // (Le sort plus haut garantit que l'index 0 est le plus gros groupe)
             ReservationAVider reservationCourante = this.ReservationAVider.get(0);
             Vehicule vehiculeChoisi = chercherVehiculePourReservationAVider(ancreVague, finVague, reservationCourante.nbPassagersRestants);
 
             if (vehiculeChoisi == null) {
-                // Aucun véhicule disponible sur cette vague.
-                // On ne crée un reliquat que si la réservation a déjà été partiellement vidée.
+                // Si partiel, on crée le reliquat en DB et on sort de la liste
                 if (reservationCourante.nbPassagersRestants < reservationCourante.reservation.getNbPassager()) {
                     dupliquerReservationPourReliquat(reservationCourante.reservation, reservationCourante.nbPassagersRestants);
                     this.ReservationAVider.remove(0);
@@ -162,24 +163,18 @@ public class AssignmentService {
                     reservationCourante.nbPassagersRestants -= nbPris;
                     progression = true;
 
-                    int placesRestantesMission = vehiculeChoisi.getNbPlaces() - nbPris;
-                    if (placesRestantesMission > 0) {
-                        this.VehiculesNonVideARemplir.add(new MissionCapacite(missionId, placesRestantesMission));
+                    if (vehiculeChoisi.getNbPlaces() - nbPris > 0) {
+                        this.VehiculesNonVideARemplir.add(new MissionCapacite(missionId, vehiculeChoisi.getNbPlaces() - nbPris));
                     }
-
-                    if (reservationCourante.nbPassagersRestants <= 0) {
-                        this.ReservationAVider.remove(0);
-                    }
+                    if (reservationCourante.nbPassagersRestants <= 0) this.ReservationAVider.remove(0);
                 }
             }
 
-            if (!progression) {
-                break;
-            }
+            if (!progression) break;
         }
-
+        
+        // Nettoyage final des reliquats non traités
         for (ReservationAVider reste : new ArrayList<>(this.ReservationAVider)) {
-            // Reliquat uniquement si la réservation a été partiellement traitée.
             if (reste.nbPassagersRestants > 0 && reste.nbPassagersRestants < reste.reservation.getNbPassager()) {
                 dupliquerReservationPourReliquat(reste.reservation, reste.nbPassagersRestants);
             }

@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalTime;
 
 import annotation.Controller;
 import annotation.Get;
@@ -84,6 +85,7 @@ public class VehiculeController {
             @Param("id") Integer id,
             @Param("reference") String reference,
             @Param("nbPlaces") int nbPlaces,
+            @Param("heureDebutDisponibilite") String heureDebutDisponibilite,
             @Param("typeCarburantId") int typeCarburantId) {
         
         ModelView model = new ModelView("vehiculeForm.jsp");
@@ -92,6 +94,7 @@ public class VehiculeController {
             Vehicule vehicule = new Vehicule();
             vehicule.setReference(reference);
             vehicule.setNbPlaces(nbPlaces);
+            vehicule.setHeureDebutDisponibilite(parseHeureDebutDisponibilite(heureDebutDisponibilite));
             vehicule.setTypeCarburantId(typeCarburantId);
             
             boolean success;
@@ -179,12 +182,13 @@ public class VehiculeController {
     public Map<String, Object> createVehiculeApi(
             @Param("reference") String reference,
             @Param("nbPlaces") int nbPlaces,
+            @Param("heureDebutDisponibilite") String heureDebutDisponibilite,
             @Param("typeCarburantId") int typeCarburantId) {
         
         Map<String, Object> response = new HashMap<>();
         
         try {
-            Vehicule vehicule = new Vehicule(reference, nbPlaces, typeCarburantId);
+            Vehicule vehicule = new Vehicule(reference, nbPlaces, parseHeureDebutDisponibilite(heureDebutDisponibilite), typeCarburantId);
             boolean success = vehiculeService.insertVehicule(vehicule);
             
             if (success) {
@@ -202,6 +206,13 @@ public class VehiculeController {
         }
         
         return response;
+    }
+
+    private LocalTime parseHeureDebutDisponibilite(String heureDebutDisponibilite) {
+        if (heureDebutDisponibilite == null || heureDebutDisponibilite.trim().isEmpty()) {
+            return LocalTime.MIDNIGHT;
+        }
+        return LocalTime.parse(heureDebutDisponibilite.trim());
     }
     
     @JSON

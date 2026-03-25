@@ -27,6 +27,7 @@
                     <div>
                         <div class="sidebar-logo-text">Location</div>
                         <div class="sidebar-logo-subtitle">Back Office</div>
+                        <div>ETU003113 - ETU003149 - ETU003175</div>
                     </div>
                 </a>
             </div>

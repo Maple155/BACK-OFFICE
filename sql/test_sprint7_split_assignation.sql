@@ -18,10 +18,10 @@ INSERT INTO Distances (id_from, id_to, kilometer) VALUES
 
 -- 4. FLOTTE (20 places au total)
 INSERT INTO TypeCarburant (id, libelle) VALUES (1, 'Essence'), (2, 'Diesel');
-INSERT INTO Vehicule (id, reference, nbPlaces, typeCarburant_id) VALUES
-(1, 'VH-001-MINI', 4, 2), 
-(2, 'VH-002-MID', 7, 1),  
-(3, 'VH-003-MAX', 9, 2);  
+INSERT INTO Vehicule (id, reference, nbPlaces, heure_debut_disponibilite, typeCarburant_id) VALUES
+(1, 'VH-001-MINI', 4, '00:00:00', 2),
+(2, 'VH-002-MID', 7, '00:00:00', 1),
+(3, 'VH-003-MAX', 9, '09:00:00', 2);
 
 -- ==========================================================
 -- SCÉNARIO GÉNÉRATEUR DE RELIQUATS

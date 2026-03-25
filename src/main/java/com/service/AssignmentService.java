@@ -37,6 +37,22 @@ class ReservationAVider {
     }
 }
 
+/**
+ * Représente un véhicule qui vient de terminer une mission et est disponible
+ * pour prendre en charge des réservations non assignées.
+ */
+class VehiculeDeRetour {
+    int vehiculeId;
+    int nbPlaces;
+    LocalDateTime heureArrivee; // heure_retour_prevu de la mission précédente
+
+    VehiculeDeRetour(int vehiculeId, int nbPlaces, LocalDateTime heureArrivee) {
+        this.vehiculeId = vehiculeId;
+        this.nbPlaces = nbPlaces;
+        this.heureArrivee = heureArrivee;
+    }
+}
+
 public class AssignmentService {
 
     private static final int AEROPORT_ID = 1;
@@ -81,13 +97,28 @@ public class AssignmentService {
             LocalDateTime finFenetreVague = ancre.plusMinutes(tempsAttente);
             System.out.println("\n--- TRAITEMENT VAGUE : " + ancre + " ---");
 
+            // FONCTIONNALITÉ 1 : Traitement prioritaire des véhicules de retour
+            // On récupère les véhicules qui viennent de terminer une mission
+            // et qui sont disponibles à l'heure de cette vague.
+            List<VehiculeDeRetour> vehiculesDeRetour = getVehiculesDeRetourPourVague(ancre, finFenetreVague);
+            if (!vehiculesDeRetour.isEmpty()) {
+                System.out.println("  " + vehiculesDeRetour.size() + " véhicule(s) de retour détecté(s) pour cette vague.");
+                traiterVehiculesDeRetour(vehiculesDeRetour, ancre, finFenetreVague, tempsAttente);
+            }
+
+            // FONCTIONNALITÉ 2 : Priorité aux réservations non assignées (backlog)
+            // getUnassignedBeforeOrAt retourne TOUTES les réservations non assignées jusqu'à
+            // la fin de la fenêtre de vague, y compris celles des vagues précédentes.
             List<Reservation> aTraiterMaintenant = resService.getUnassignedBeforeOrAt(finFenetreVague);
             if (aTraiterMaintenant.isEmpty()) {
                 continue;
             }
 
+            // Tri : backlog en priorité (dateHeure < ancre), puis les nouvelles (dateHeure >= ancre).
+            // Au sein de chaque groupe : chronologique puis plus grand groupe d'abord.
             aTraiterMaintenant.sort(Comparator
-                    .comparing(Reservation::getDateHeure)
+                    .comparing((Reservation r) -> r.getDateHeure().isBefore(ancre) ? 0 : 1) // backlog en tête
+                    .thenComparing(Reservation::getDateHeure)
                     .thenComparing(Comparator.comparingInt(Reservation::getNbPassager).reversed()));
 
             this.VehiculesNonVideARemplir.clear();
@@ -103,6 +134,189 @@ public class AssignmentService {
             // Une fois la vague finie, on aligne les horaires de départ de tous les véhicules de cette ancre
             synchroniserDepartEtRetoursVague(ancre);
         }
+    }
+
+   // =========================================================================
+    // FONCTIONNALITÉ 1 : VÉHICULES DE RETOUR
+    // =========================================================================
+
+    /**
+     * Retourne la liste des véhicules qui terminent une mission pendant (ou juste
+     * avant) la fenêtre de la vague courante et qui n'ont pas encore été affectés
+     * à une nouvelle mission pour cette même vague.
+     */
+    private List<VehiculeDeRetour> getVehiculesDeRetourPourVague(LocalDateTime debutVague, LocalDateTime finVague) {
+        List<VehiculeDeRetour> result = new ArrayList<>();
+        // Un véhicule "de retour" est celui dont la mission précédente se termine
+        // entre le début de la vague et la fin de la fenêtre d'attente,
+        // et qui n'a pas encore de mission planifiée pour cette vague.
+        String sql = "SELECT m.id_vehicule, v.nbPlaces, m.heure_retour_prevu " +
+                     "FROM Mission m " +
+                     "JOIN Vehicule v ON m.id_vehicule = v.id " +
+                     "WHERE m.heure_retour_prevu > ? AND m.heure_retour_prevu <= ? " +
+                     "AND m.id_vehicule NOT IN ( " +
+                     "  SELECT id_vehicule FROM Mission " +
+                     "  WHERE heure_arrivee_aero = ? " +
+                     ") " +
+                     "ORDER BY m.heure_retour_prevu ASC";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, Timestamp.valueOf(debutVague));
+            pstmt.setTimestamp(2, Timestamp.valueOf(finVague));
+            pstmt.setTimestamp(3, Timestamp.valueOf(debutVague));
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                result.add(new VehiculeDeRetour(
+                    rs.getInt("id_vehicule"),
+                    rs.getInt("nbPlaces"),
+                    rs.getTimestamp("heure_retour_prevu").toLocalDateTime()
+                ));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    /**
+     * FONCTIONNALITÉ 1 — Logique d'assignation pour les véhicules de retour.
+     *
+     * Pour chaque véhicule de retour :
+     *   A) Cherche d'abord une réservation non assignée dont nbPassager >= nbPlaces du véhicule.
+     *      → Départ immédiat (heureArrivee du véhicule).
+     *   B) Sinon, prend la plus grosse réservation < nbPlaces et attend jusqu'à tempsAttente
+     *      ou jusqu'à ce que le véhicule soit plein, puis complète avec d'autres réservations
+     *      de façon à minimiser le nombre de passagers restant pour la prochaine vague.
+     *      → Le départ effectif est le max(dateHeure) des réservations embarquées,
+     *        mais jamais avant heureArrivee ni après heureArrivee + tempsAttente.
+     */
+    private void traiterVehiculesDeRetour(List<VehiculeDeRetour> vehiculesDeRetour,
+                                          LocalDateTime ancreVague,
+                                          LocalDateTime finVague,
+                                          int tempsAttente) {
+        ReservationService resService = new ReservationService();
+        double vitesse = Double.parseDouble(getParametre("VITESSE_MOYENNE_KMH", "40"));
+
+        for (VehiculeDeRetour vdr : vehiculesDeRetour) {
+            // Récupère toutes les réservations non assignées disponibles jusqu'à la fin de la vague
+            List<Reservation> nonAssignees = resService.getUnassignedBeforeOrAt(finVague);
+            if (nonAssignees.isEmpty()) break;
+
+            // Tri : backlog (avant ancre) en premier, puis par taille décroissante
+            nonAssignees.sort(Comparator
+                .comparing((Reservation r) -> r.getDateHeure().isBefore(ancreVague) ? 0 : 1)
+                .thenComparing(Comparator.comparingInt(Reservation::getNbPassager).reversed()));
+
+            // CAS A : Existe-t-il une réservation >= nbPlaces du véhicule ?
+            Reservation resComplete = nonAssignees.stream()
+                .filter(r -> r.getNbPassager() >= vdr.nbPlaces)
+                .findFirst()
+                .orElse(null);
+
+            if (resComplete != null) {
+                // Départ immédiat à l'heure d'arrivée du véhicule
+                System.out.println("  [Retour CAS A] Véhicule " + vdr.vehiculeId +
+                    " prend réservation " + resComplete.getId() +
+                    " (" + resComplete.getNbPassager() + " passagers) — départ immédiat à " + vdr.heureArrivee);
+
+                int missionId = creerMissionVideAvecDepart(vdr.vehiculeId, ancreVague, vdr.heureArrivee);
+                if (missionId != -1) {
+                    int nbPris = Math.min(vdr.nbPlaces, resComplete.getNbPassager());
+                    enregistrerAssignationPartielle(missionId, resComplete.getId(), nbPris);
+                    int reliquat = resComplete.getNbPassager() - nbPris;
+                    if (reliquat > 0) {
+                        dupliquerReservationPourReliquat(resComplete, reliquat);
+                    }
+                    // Calcul du retour
+                    double distance = calculerDistanceCircuit(List.of(resComplete.getIdLieu()));
+                    LocalDateTime retour = vdr.heureArrivee.plusMinutes((long)((distance / vitesse) * 60));
+                    updateMissionDepartEtRetour(missionId, vdr.heureArrivee, retour);
+                }
+                continue;
+            }
+
+            // CAS B : Aucune réservation >= nbPlaces — on prend la plus grosse disponible
+            // et on complète avec d'autres réservations pendant le temps d'attente.
+            Reservation resPrincipale = nonAssignees.get(0); // la plus grosse après le tri
+            int placesRestantes = vdr.nbPlaces - resPrincipale.getNbPassager();
+            LocalDateTime limiteAttente = vdr.heureArrivee.plusMinutes(tempsAttente);
+
+            System.out.println("  [Retour CAS B] Véhicule " + vdr.vehiculeId +
+                " prend réservation " + resPrincipale.getId() +
+                " (" + resPrincipale.getNbPassager() + " passagers). Places restantes : " + placesRestantes);
+
+            int missionId = creerMissionVideAvecDepart(vdr.vehiculeId, ancreVague, limiteAttente);
+            if (missionId == -1) continue;
+
+            List<Integer> lieuxEmbarques = new ArrayList<>();
+            lieuxEmbarques.add(resPrincipale.getIdLieu());
+            enregistrerAssignationPartielle(missionId, resPrincipale.getId(), resPrincipale.getNbPassager());
+            LocalDateTime derniereDateHeure = resPrincipale.getDateHeure();
+
+            // Compléter avec d'autres réservations pour minimiser le reliquat,
+            // dans la limite du temps d'attente et des places disponibles.
+            for (Reservation candidate : nonAssignees) {
+                if (candidate.getId() == resPrincipale.getId()) continue;
+                if (placesRestantes <= 0) break;
+                // On ne prend que des réservations dont l'heure est avant la limite d'attente
+                if (candidate.getDateHeure().isAfter(limiteAttente)) continue;
+
+                int nbPris = Math.min(placesRestantes, candidate.getNbPassager());
+                enregistrerAssignationPartielle(missionId, candidate.getId(), nbPris);
+                lieuxEmbarques.add(candidate.getIdLieu());
+                placesRestantes -= nbPris;
+
+                if (candidate.getDateHeure().isAfter(derniereDateHeure)) {
+                    derniereDateHeure = candidate.getDateHeure();
+                }
+
+                int reliquat = candidate.getNbPassager() - nbPris;
+                if (reliquat > 0) {
+                    dupliquerReservationPourReliquat(candidate, reliquat);
+                }
+
+                System.out.println("    + Réservation complémentaire " + candidate.getId() +
+                    " (" + nbPris + " passagers pris). Places restantes : " + placesRestantes);
+            }
+
+            // L'heure de départ effective est le max entre :
+            //   - l'heure d'arrivée du véhicule
+            //   - la plus tardive des dateHeure des réservations embarquées
+            // Mais jamais après la limite d'attente.
+            LocalDateTime departEffectif = derniereDateHeure.isAfter(vdr.heureArrivee)
+                ? derniereDateHeure
+                : vdr.heureArrivee;
+            if (departEffectif.isAfter(limiteAttente)) {
+                departEffectif = limiteAttente;
+            }
+
+            double distance = calculerDistanceCircuit(lieuxEmbarques);
+            LocalDateTime retour = departEffectif.plusMinutes((long)((distance / vitesse) * 60));
+            updateMissionDepartEtRetour(missionId, departEffectif, retour);
+
+            System.out.println("  [Retour CAS B] Départ effectif : " + departEffectif + " | Retour prévu : " + retour);
+        }
+    }
+
+    /**
+     * Crée une mission vide avec un heure_depart_prevu explicite (différent de l'ancre de vague).
+     * Utilisé pour les véhicules de retour dont le départ peut être immédiat ou après attente.
+     */
+    private int creerMissionVideAvecDepart(int vehiculeId, LocalDateTime ancre, LocalDateTime departPrevu) {
+        String sql = "INSERT INTO Mission (id_vehicule, heure_arrivee_aero, heure_depart_prevu, heure_retour_prevu) " +
+                     "VALUES (?, ?, ?, ?) RETURNING id";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, vehiculeId);
+            pstmt.setTimestamp(2, Timestamp.valueOf(ancre));
+            pstmt.setTimestamp(3, Timestamp.valueOf(departPrevu));
+            pstmt.setTimestamp(4, Timestamp.valueOf(departPrevu.plusMinutes(30))); // sera recalculé
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return -1;
     }
 
    private void traiterFluxPrioritaire(LocalDateTime ancreVague, LocalDateTime finVague) {

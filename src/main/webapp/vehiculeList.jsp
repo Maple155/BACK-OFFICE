@@ -155,6 +155,7 @@
                                             <th>ID</th>
                                             <th>Référence</th>
                                             <th>Places</th>
+                                            <th>Début dispo</th>
                                             <th>Carburant</th>
                                             <th style="text-align: right;">Actions</th>
                                         </tr>
@@ -165,10 +166,11 @@
                                                 <td><span class="text-muted">#<%= vehicule.getId() %></span></td>
                                                 <td><strong><%= vehicule.getReference() %></strong></td>
                                                 <td><span class="badge badge-info"><%= vehicule.getNbPlaces() %> places</span></td>
+                                                <td><span class="badge badge-warning"><%= vehicule.getHeureDebutDisponibilite() != null ? vehicule.getHeureDebutDisponibilite() : "00:00" %></span></td>
                                                 <td><span class="badge badge-primary"><%= vehicule.getTypeCarburantLibelle() != null ? vehicule.getTypeCarburantLibelle() : "N/A" %></span></td>
                                                 <td>
                                                     <div class="table-actions">
-                                                        <button class="btn btn-ghost btn-sm" onclick="editVehicle(<%= vehicule.getId() %>, '<%= vehicule.getReference() %>', <%= vehicule.getNbPlaces() %>, <%= vehicule.getTypeCarburantId() %>)" title="Modifier">
+                                                        <button class="btn btn-ghost btn-sm" onclick="editVehicle(<%= vehicule.getId() %>, '<%= vehicule.getReference() %>', <%= vehicule.getNbPlaces() %>, '<%= vehicule.getHeureDebutDisponibilite() != null ? vehicule.getHeureDebutDisponibilite() : "00:00" %>', <%= vehicule.getTypeCarburantId() %>)" title="Modifier">
                                                             <i class="fas fa-edit"></i>
                                                         </button>
                                                         <button class="btn btn-ghost btn-sm" onclick="confirmDelete(<%= vehicule.getId() %>, '<%= vehicule.getReference() %>')" title="Supprimer">
@@ -217,6 +219,11 @@
                     <div class="form-group">
                         <label class="form-label required" for="nbPlaces">Nombre de places</label>
                         <input type="number" id="nbPlaces" name="nbPlaces" class="form-input" min="1" max="50" value="4" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required" for="heureDebutDisponibilite">Heure début disponibilité</label>
+                        <input type="time" id="heureDebutDisponibilite" name="heureDebutDisponibilite" class="form-input" value="00:00" required>
                     </div>
                     
                     <div class="form-group">
@@ -341,15 +348,17 @@
             document.getElementById('vehicleId').value = '';
             document.getElementById('reference').value = '';
             document.getElementById('nbPlaces').value = '4';
+            document.getElementById('heureDebutDisponibilite').value = '00:00';
             document.getElementById('typeCarburantId').value = '';
             document.getElementById('vehicleModalTitle').textContent = 'Nouveau Véhicule';
             document.getElementById('vehicleSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Créer le véhicule';
         }
 
-        function editVehicle(id, reference, nbPlaces, typeCarburantId) {
+        function editVehicle(id, reference, nbPlaces, heureDebutDisponibilite, typeCarburantId) {
             document.getElementById('vehicleId').value = id;
             document.getElementById('reference').value = reference;
             document.getElementById('nbPlaces').value = nbPlaces;
+            document.getElementById('heureDebutDisponibilite').value = heureDebutDisponibilite;
             document.getElementById('typeCarburantId').value = typeCarburantId;
             document.getElementById('vehicleModalTitle').textContent = 'Modifier le Véhicule';
             document.getElementById('vehicleSubmitBtn').innerHTML = '<i class="fas fa-save"></i> Enregistrer';

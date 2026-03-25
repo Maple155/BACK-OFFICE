@@ -1,11 +1,13 @@
 package com.entity;
 
+import java.time.LocalTime;
 import java.util.Objects;
 
 public class Vehicule {
     private int id;
     private String reference;
     private int nbPlaces;
+    private LocalTime heureDebutDisponibilite;
     private int typeCarburantId;
     private String typeCarburantLibelle; // Pour l'affichage
     
@@ -16,6 +18,14 @@ public class Vehicule {
         this.reference = reference;
         this.nbPlaces = nbPlaces;
         this.typeCarburantId = typeCarburantId;
+        this.heureDebutDisponibilite = LocalTime.MIDNIGHT;
+    }
+
+    public Vehicule(String reference, int nbPlaces, LocalTime heureDebutDisponibilite, int typeCarburantId) {
+        this.reference = reference;
+        this.nbPlaces = nbPlaces;
+        this.heureDebutDisponibilite = heureDebutDisponibilite;
+        this.typeCarburantId = typeCarburantId;
     }
     
     public Vehicule(int id, String reference, int nbPlaces, int typeCarburantId) {
@@ -23,6 +33,7 @@ public class Vehicule {
         this.reference = reference;
         this.nbPlaces = nbPlaces;
         this.typeCarburantId = typeCarburantId;
+        this.heureDebutDisponibilite = LocalTime.MIDNIGHT;
     }
     
     // Getters et Setters
@@ -49,6 +60,14 @@ public class Vehicule {
     public void setNbPlaces(int nbPlaces) {
         this.nbPlaces = nbPlaces;
     }
+
+    public LocalTime getHeureDebutDisponibilite() {
+        return heureDebutDisponibilite;
+    }
+
+    public void setHeureDebutDisponibilite(LocalTime heureDebutDisponibilite) {
+        this.heureDebutDisponibilite = heureDebutDisponibilite;
+    }
     
     public int getTypeCarburantId() {
         return typeCarburantId;
@@ -73,6 +92,7 @@ public class Vehicule {
                 "id=" + id +
                 ", reference='" + reference + '\'' +
                 ", nbPlaces=" + nbPlaces +
+                ", heureDebutDisponibilite=" + heureDebutDisponibilite +
                 ", typeCarburantId=" + typeCarburantId +
                 ", typeCarburantLibelle='" + typeCarburantLibelle + '\'' +
                 '}';
@@ -86,11 +106,12 @@ public class Vehicule {
         return id == vehicule.id && 
                nbPlaces == vehicule.nbPlaces && 
                typeCarburantId == vehicule.typeCarburantId && 
-               Objects.equals(reference, vehicule.reference);
+             Objects.equals(reference, vehicule.reference) &&
+             Objects.equals(heureDebutDisponibilite, vehicule.heureDebutDisponibilite);
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(id, reference, nbPlaces, typeCarburantId);
+        return Objects.hash(id, reference, nbPlaces, heureDebutDisponibilite, typeCarburantId);
     }
 }

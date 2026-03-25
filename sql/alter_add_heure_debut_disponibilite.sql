@@ -1,0 +1,2 @@
+ALTER TABLE Vehicule
+ADD COLUMN IF NOT EXISTS heure_debut_disponibilite TIME NOT NULL DEFAULT '00:00:00';

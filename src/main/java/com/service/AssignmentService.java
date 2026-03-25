@@ -5,11 +5,13 @@ import com.entity.Vehicule;
 import com.entity.Lieu;
 import com.connect.DatabaseConnection;
 import java.sql.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +26,23 @@ class MissionCapacite {
         this.placesLibres = placesLibres;
     }
 }
+
+class ReservationAVider {
+    Reservation reservation;
+    int nbPassagersRestants;
+
+    ReservationAVider(Reservation reservation, int nbPassagersRestants) {
+        this.reservation = reservation;
+        this.nbPassagersRestants = nbPassagersRestants;
+    }
+}
+
 public class AssignmentService {
 
     private static final int AEROPORT_ID = 1;
     private List<LocalDateTime> ancres = new ArrayList<>();
+    private final List<MissionCapacite> VehiculesNonVideARemplir = new ArrayList<>();
+    private final List<ReservationAVider> ReservationAVider = new ArrayList<>();
     /**
      * RÈGLE DE GESTION : Ordonnancement du traitement des réservations.
      * 1 - Les plus tôt d'abord (Chronologique).
@@ -66,28 +81,176 @@ public class AssignmentService {
             LocalDateTime finFenetreVague = ancre.plusMinutes(tempsAttente);
             System.out.println("\n--- TRAITEMENT VAGUE : " + ancre + " ---");
 
-            // RÉCUPÉRATION DYNAMIQUE : On prend les résas de cette vague 
-            // + TOUS les reliquats/échecs des vagues précédentes.
             List<Reservation> aTraiterMaintenant = resService.getUnassignedBeforeOrAt(finFenetreVague);
-
-            if (aTraiterMaintenant.isEmpty()) continue;
-
-            // Tri interne : On privilégie les gros groupes pour saturer les véhicules de cette vague
-            aTraiterMaintenant.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
-
-            for (Reservation r : aTraiterMaintenant) {
-                System.out.println(">>> Tentative ID: " + r.getId() + " (" + r.getNbPassager() + "p)");
-                
-                // L'assignation automatique va soit :
-                // - Placer tout le monde
-                // - Faire un split (créer un reliquat en base qui sera vu à la PROCHAINE vague)
-                // - Échouer (la résa restera unassigned pour la PROCHAINE vague)
-                assignerReservationAutomatiquement(r.getId(), ancre);
+            if (aTraiterMaintenant.isEmpty()) {
+                continue;
             }
+
+            aTraiterMaintenant.sort(Comparator
+                    .comparing(Reservation::getDateHeure)
+                    .thenComparing(Comparator.comparingInt(Reservation::getNbPassager).reversed()));
+
+            this.VehiculesNonVideARemplir.clear();
+            this.VehiculesNonVideARemplir.addAll(getMissionsOuvertesDeLaVague(ancre, finFenetreVague));
+
+            this.ReservationAVider.clear();
+            for (Reservation reservation : aTraiterMaintenant) {
+                this.ReservationAVider.add(new ReservationAVider(reservation, reservation.getNbPassager()));
+            }
+
+            traiterFluxPrioritaire(ancre, finFenetreVague);
 
             // Une fois la vague finie, on aligne les horaires de départ de tous les véhicules de cette ancre
             synchroniserDepartEtRetoursVague(ancre);
         }
+    }
+
+   private void traiterFluxPrioritaire(LocalDateTime ancreVague, LocalDateTime finVague) {
+        while (!this.ReservationAVider.isEmpty()) {
+            boolean progression = false;
+
+            // --- LA SEULE MODIFICATION IMPORTANTE ---
+            // On trie pour que les plus gros groupes restants soient traités en priorité
+            // pour remplir les véhicules existants.
+            this.ReservationAVider.sort((r1, r2) -> 
+                Integer.compare(r2.nbPassagersRestants, r1.nbPassagersRestants));
+
+            // 1) Remplissage des véhicules déjà ouverts
+            Iterator<MissionCapacite> missionsIterator = this.VehiculesNonVideARemplir.iterator();
+            while (missionsIterator.hasNext()) {
+                MissionCapacite mission = missionsIterator.next();
+                if (mission.placesLibres <= 0) {
+                    missionsIterator.remove();
+                    continue;
+                }
+
+                // On cherche la résa qui fitte le mieux dans ces places libres
+                ReservationAVider reservationCandidate = trouverReservationPlusProche(mission.placesLibres);
+                if (reservationCandidate == null) continue;
+
+                int nbPris = Math.min(mission.placesLibres, reservationCandidate.nbPassagersRestants);
+                enregistrerAssignationPartielle(mission.id, reservationCandidate.reservation.getId(), nbPris);
+
+                mission.placesLibres -= nbPris;
+                reservationCandidate.nbPassagersRestants -= nbPris;
+                progression = true;
+
+                if (reservationCandidate.nbPassagersRestants <= 0) {
+                    this.ReservationAVider.remove(reservationCandidate);
+                }
+                if (mission.placesLibres <= 0) missionsIterator.remove();
+            }
+
+            if (this.ReservationAVider.isEmpty()) break;
+
+            // 2) Création d'un nouveau véhicule pour la plus grosse réservation restante
+            // (Le sort plus haut garantit que l'index 0 est le plus gros groupe)
+            ReservationAVider reservationCourante = this.ReservationAVider.get(0);
+            Vehicule vehiculeChoisi = chercherVehiculePourReservationAVider(ancreVague, finVague, reservationCourante.nbPassagersRestants);
+
+            if (vehiculeChoisi == null) {
+                // Si partiel, on crée le reliquat en DB et on sort de la liste
+                if (reservationCourante.nbPassagersRestants < reservationCourante.reservation.getNbPassager()) {
+                    dupliquerReservationPourReliquat(reservationCourante.reservation, reservationCourante.nbPassagersRestants);
+                    this.ReservationAVider.remove(0);
+                    progression = true;
+                }
+            } else {
+                int missionId = creerMissionVide(vehiculeChoisi.getId(), ancreVague);
+                if (missionId != -1) {
+                    int nbPris = Math.min(vehiculeChoisi.getNbPlaces(), reservationCourante.nbPassagersRestants);
+                    enregistrerAssignationPartielle(missionId, reservationCourante.reservation.getId(), nbPris);
+                    reservationCourante.nbPassagersRestants -= nbPris;
+                    progression = true;
+
+                    if (vehiculeChoisi.getNbPlaces() - nbPris > 0) {
+                        this.VehiculesNonVideARemplir.add(new MissionCapacite(missionId, vehiculeChoisi.getNbPlaces() - nbPris));
+                    }
+                    if (reservationCourante.nbPassagersRestants <= 0) this.ReservationAVider.remove(0);
+                }
+            }
+
+            if (!progression) break;
+        }
+        
+        // Nettoyage final des reliquats non traités
+        for (ReservationAVider reste : new ArrayList<>(this.ReservationAVider)) {
+            if (reste.nbPassagersRestants > 0 && reste.nbPassagersRestants < reste.reservation.getNbPassager()) {
+                dupliquerReservationPourReliquat(reste.reservation, reste.nbPassagersRestants);
+            }
+        }
+        this.ReservationAVider.clear();
+    }
+
+    private ReservationAVider trouverReservationPlusProche(int nbPlacesRestantes) {
+        return this.ReservationAVider.stream()
+            .min(Comparator
+                .comparingInt((ReservationAVider r) -> Math.abs(r.nbPassagersRestants - nbPlacesRestantes))
+                .thenComparing((ReservationAVider r) -> r.nbPassagersRestants > nbPlacesRestantes ? 0 : 1)
+                .thenComparing(r -> r.reservation.getDateHeure())
+                .thenComparingInt(r -> r.reservation.getId()))
+            .orElse(null);
+    }
+
+    private Vehicule chercherVehiculePourReservationAVider(LocalDateTime ancre, LocalDateTime fin, int nbPassagersRestants) {
+        List<Vehicule> candidats = new ArrayList<>();
+        String sql = "SELECT v.*, tc.libelle as carb FROM Vehicule v " +
+                    "JOIN TypeCarburant tc ON v.typeCarburant_id = tc.id";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql);
+            ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                int vId = rs.getInt("id");
+                LocalDateTime dispo = getHeureDisponibiliteVehiculePourVague(vId, ancre, fin);
+                if (dispo != null
+                    && !dispo.isAfter(fin)
+                    && !vehiculeDejaAffecteDansVague(vId, ancre)) {
+                    Vehicule v = new Vehicule();
+                    v.setId(vId);
+                    v.setNbPlaces(rs.getInt("nbPlaces"));
+                    v.setTypeCarburantLibelle(rs.getString("carb"));
+                    Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                    v.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
+                    candidats.add(v);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (candidats.isEmpty()) {
+            return null;
+        }
+
+        return candidats.stream().min((v1, v2) -> {
+            boolean v1AssezGrand = v1.getNbPlaces() >= nbPassagersRestants;
+            boolean v2AssezGrand = v2.getNbPlaces() >= nbPassagersRestants;
+
+            if (v1AssezGrand && !v2AssezGrand) return -1;
+            if (!v1AssezGrand && v2AssezGrand) return 1;
+
+            int diff1 = Math.abs(v1.getNbPlaces() - nbPassagersRestants);
+            int diff2 = Math.abs(v2.getNbPlaces() - nbPassagersRestants);
+            if (diff1 != diff2) return Integer.compare(diff1, diff2);
+
+            if (v1AssezGrand && v2AssezGrand) {
+                return Integer.compare(v1.getNbPlaces(), v2.getNbPlaces());
+            }
+
+            int compTaille = Integer.compare(v2.getNbPlaces(), v1.getNbPlaces());
+            if (compTaille != 0) return compTaille;
+
+            int m1 = getNombreTrajetsVehiculePourJour(v1.getId(), ancre);
+            int m2 = getNombreTrajetsVehiculePourJour(v2.getId(), ancre);
+            if (m1 != m2) return Integer.compare(m1, m2);
+
+            if (v1.getTypeCarburantLibelle().equalsIgnoreCase("Diesel") && !v2.getTypeCarburantLibelle().equalsIgnoreCase("Diesel")) return -1;
+            if (!v1.getTypeCarburantLibelle().equalsIgnoreCase("Diesel") && v2.getTypeCarburantLibelle().equalsIgnoreCase("Diesel")) return 1;
+
+            return Integer.compare(v1.getId(), v2.getId());
+        }).orElse(null);
     }
     public boolean assignerReservationAutomatiquement(int reservationId, LocalDateTime ancreVague) {
         ReservationService resService = new ReservationService();
@@ -169,6 +332,8 @@ public class AssignmentService {
                     v.setId(vId);
                     v.setNbPlaces(rs.getInt("nbPlaces"));
                     v.setTypeCarburantLibelle(rs.getString("carb"));
+                    Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                    v.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
                     candidats.add(v);
                 }
             }
@@ -348,6 +513,8 @@ public class AssignmentService {
                 v.setId(rs.getInt("id"));
                 v.setNbPlaces(rs.getInt("nbPlaces"));
                 v.setTypeCarburantLibelle(rs.getString("carb"));
+                Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                v.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
 
                 LocalDateTime disponibilite = getHeureDisponibiliteVehiculePourVague(v.getId(), ancreVague, finVague);
                 if (disponibilite != null
@@ -639,7 +806,13 @@ public class AssignmentService {
                 v.setId(rs.getInt("id"));
                 v.setNbPlaces(rs.getInt("nbPlaces"));
                 v.setTypeCarburantLibelle(rs.getString("carb"));
-                list.add(v);
+                Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                v.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
+
+                LocalDateTime debutAutorise = getHeureDebutDisponibiliteVehiculePourJour(v.getId(), t.toLocalDate());
+                if (debutAutorise == null || !t.isBefore(debutAutorise)) {
+                    list.add(v);
+                }
             }
         } catch (Exception e) {}
         return list;
@@ -650,6 +823,8 @@ public class AssignmentService {
     }
 
     private LocalDateTime getHeureDisponibiliteVehiculePourVague(int vehiculeId, LocalDateTime debutVague, LocalDateTime finVague, int missionIdExclue) {
+        LocalDateTime debutDisponibiliteJour = getHeureDebutDisponibiliteVehiculePourJour(vehiculeId, debutVague.toLocalDate());
+
         // Si le véhicule est en mission au début de la vague, sa disponibilité = heure_retour_prevu.
         String sqlMissionEnCours = "SELECT heure_retour_prevu FROM Mission " +
                                    "WHERE id_vehicule = ? AND id <> ? AND heure_arrivee_aero <= ? AND heure_retour_prevu > ? " +
@@ -662,17 +837,39 @@ public class AssignmentService {
             pstmt.setTimestamp(4, Timestamp.valueOf(debutVague));
             ResultSet rs = pstmt.executeQuery();
             if (rs.next() && rs.getTimestamp(1) != null) {
-                return rs.getTimestamp(1).toLocalDateTime();
+                LocalDateTime retourMission = rs.getTimestamp(1).toLocalDateTime();
+                if (debutDisponibiliteJour != null && retourMission.isBefore(debutDisponibiliteJour)) {
+                    return debutDisponibiliteJour;
+                }
+                return retourMission;
             }
         } catch (Exception e) {}
 
         // Sinon, on prend son dernier retour avant la fin de vague (si existant),
         // ou le début de vague s'il n'a pas encore roulé ce jour-là.
         LocalDateTime retourAvantFin = getHeureArriveeEffective(vehiculeId, finVague, missionIdExclue);
-        if (retourAvantFin == null || retourAvantFin.isBefore(debutVague)) {
-            return debutVague;
+        LocalDateTime baseDisponibilite = retourAvantFin;
+        if (baseDisponibilite == null || baseDisponibilite.isBefore(debutVague)) {
+            baseDisponibilite = debutVague;
         }
-        return retourAvantFin;
+
+        if (debutDisponibiliteJour != null && baseDisponibilite.isBefore(debutDisponibiliteJour)) {
+            baseDisponibilite = debutDisponibiliteJour;
+        }
+        return baseDisponibilite;
+    }
+
+    private LocalDateTime getHeureDebutDisponibiliteVehiculePourJour(int vehiculeId, LocalDate jourReference) {
+        String sql = "SELECT heure_debut_disponibilite FROM Vehicule WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, vehiculeId);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next() && rs.getTime(1) != null) {
+                return LocalDateTime.of(jourReference, rs.getTime(1).toLocalTime());
+            }
+        } catch (Exception e) {}
+        return LocalDateTime.of(jourReference, LocalTime.MIDNIGHT);
     }
 
     private int getNombreTrajetsVehiculePourJour(int vehiculeId, LocalDateTime jourReference) {

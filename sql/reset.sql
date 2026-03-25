@@ -30,8 +30,8 @@ INSERT INTO Distances (id_from, id_to, kilometer) VALUES
 INSERT INTO TypeCarburant (id, libelle) VALUES
 (1, 'Essence'), (2, 'Diesel'), (3, 'Electrique');
 
-INSERT INTO Vehicule (id, reference, nbPlaces, typeCarburant_id) VALUES
-(1, 'VH-001', 4, 1), (2, 'VH-002', 7, 2), (5, 'VH-005', 8, 2);
+INSERT INTO Vehicule (id, reference, nbPlaces, heure_debut_disponibilite, typeCarburant_id) VALUES
+(1, 'VH-001', 4, '06:00:00', 1), (2, 'VH-002', 7, '05:30:00', 2), (5, 'VH-005', 8, '07:00:00', 2);
 
 -- 6. Missions (Sans colonne statut)
 INSERT INTO Mission (id, id_vehicule, heure_arrivee_aero, heure_depart_prevu, heure_retour_prevu) VALUES

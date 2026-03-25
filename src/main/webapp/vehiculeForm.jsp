@@ -101,6 +101,14 @@
                                 <input type="number" class="form-input" id="nbPlaces" name="nbPlaces" 
                                        value="<%= vehicule != null ? vehicule.getNbPlaces() : "" %>" min="1" max="50" required>
                             </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="heureDebutDisponibilite">
+                                    <i class="fas fa-clock"></i> Heure début disponibilité
+                                </label>
+                                <input type="time" class="form-input" id="heureDebutDisponibilite" name="heureDebutDisponibilite"
+                                       value="<%= vehicule != null && vehicule.getHeureDebutDisponibilite() != null ? vehicule.getHeureDebutDisponibilite().toString() : "00:00" %>" required>
+                            </div>
                             
                             <div class="form-group">
                                 <label class="form-label" for="typeCarburantId">

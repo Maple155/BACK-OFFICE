@@ -4,6 +4,7 @@ import com.entity.Vehicule;
 import com.entity.TypeCarburant;
 import com.connect.DatabaseConnection;
 import java.sql.*;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -75,14 +76,16 @@ public class VehiculeService {
     // Méthodes pour Vehicule
     
     public boolean insertVehicule(Vehicule vehicule) {
-        String sql = "INSERT INTO Vehicule (reference, nbPlaces, typeCarburant_id) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO Vehicule (reference, nbPlaces, heure_debut_disponibilite, typeCarburant_id) VALUES (?, ?, ?, ?)";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            LocalTime heureDebut = vehicule.getHeureDebutDisponibilite() != null ? vehicule.getHeureDebutDisponibilite() : LocalTime.MIDNIGHT;
             
             pstmt.setString(1, vehicule.getReference());
             pstmt.setInt(2, vehicule.getNbPlaces());
-            pstmt.setInt(3, vehicule.getTypeCarburantId());
+            pstmt.setTime(3, Time.valueOf(heureDebut));
+            pstmt.setInt(4, vehicule.getTypeCarburantId());
             
             int rowsAffected = pstmt.executeUpdate();
             return rowsAffected > 0;
@@ -94,15 +97,17 @@ public class VehiculeService {
     }
     
     public boolean updateVehicule(Vehicule vehicule) {
-        String sql = "UPDATE Vehicule SET reference = ?, nbPlaces = ?, typeCarburant_id = ? WHERE id = ?";
+        String sql = "UPDATE Vehicule SET reference = ?, nbPlaces = ?, heure_debut_disponibilite = ?, typeCarburant_id = ? WHERE id = ?";
         
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            LocalTime heureDebut = vehicule.getHeureDebutDisponibilite() != null ? vehicule.getHeureDebutDisponibilite() : LocalTime.MIDNIGHT;
             
             pstmt.setString(1, vehicule.getReference());
             pstmt.setInt(2, vehicule.getNbPlaces());
-            pstmt.setInt(3, vehicule.getTypeCarburantId());
-            pstmt.setInt(4, vehicule.getId());
+            pstmt.setTime(3, Time.valueOf(heureDebut));
+            pstmt.setInt(4, vehicule.getTypeCarburantId());
+            pstmt.setInt(5, vehicule.getId());
             
             int rowsAffected = pstmt.executeUpdate();
             return rowsAffected > 0;
@@ -145,6 +150,8 @@ public class VehiculeService {
                 vehicule.setId(rs.getInt("id"));
                 vehicule.setReference(rs.getString("reference"));
                 vehicule.setNbPlaces(rs.getInt("nbPlaces"));
+                Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                vehicule.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
                 vehicule.setTypeCarburantId(rs.getInt("typeCarburant_id"));
                 vehicule.setTypeCarburantLibelle(rs.getString("type_carburant_libelle"));
                 vehicules.add(vehicule);
@@ -174,6 +181,8 @@ public class VehiculeService {
                 vehicule.setId(rs.getInt("id"));
                 vehicule.setReference(rs.getString("reference"));
                 vehicule.setNbPlaces(rs.getInt("nbPlaces"));
+                Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                vehicule.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
                 vehicule.setTypeCarburantId(rs.getInt("typeCarburant_id"));
                 vehicule.setTypeCarburantLibelle(rs.getString("type_carburant_libelle"));
                 return vehicule;
@@ -194,6 +203,7 @@ public class VehiculeService {
                     "WHERE CAST(v.id AS TEXT) LIKE ? " +
                     "OR UPPER(v.reference) LIKE ? " +
                     "OR CAST(v.nbPlaces AS TEXT) LIKE ? " +
+                    "OR CAST(v.heure_debut_disponibilite AS TEXT) LIKE ? " +
                     "OR CAST(v.typeCarburant_id AS TEXT) LIKE ? " +
                     "OR UPPER(COALESCE(t.libelle, '')) LIKE ? " +
                     "ORDER BY v.reference";
@@ -207,7 +217,8 @@ public class VehiculeService {
             pstmt.setString(2, searchPatternUpper);
             pstmt.setString(3, searchPattern);
             pstmt.setString(4, searchPattern);
-            pstmt.setString(5, searchPatternUpper);
+            pstmt.setString(5, searchPattern);
+            pstmt.setString(6, searchPatternUpper);
             
             ResultSet rs = pstmt.executeQuery();
             
@@ -216,6 +227,8 @@ public class VehiculeService {
                 vehicule.setId(rs.getInt("id"));
                 vehicule.setReference(rs.getString("reference"));
                 vehicule.setNbPlaces(rs.getInt("nbPlaces"));
+                Time heureDebutDispo = rs.getTime("heure_debut_disponibilite");
+                vehicule.setHeureDebutDisponibilite(heureDebutDispo != null ? heureDebutDispo.toLocalTime() : LocalTime.MIDNIGHT);
                 vehicule.setTypeCarburantId(rs.getInt("typeCarburant_id"));
                 vehicule.setTypeCarburantLibelle(rs.getString("type_carburant_libelle"));
                 vehicules.add(vehicule);

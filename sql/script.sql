@@ -51,6 +51,7 @@ CREATE TABLE Vehicule (
     id SERIAL PRIMARY KEY,
     reference VARCHAR(255) NOT NULL,
     nbPlaces INT NOT NULL,
+    heure_debut_disponibilite TIME NOT NULL DEFAULT '00:00:00',
     typeCarburant_id INT NOT NULL REFERENCES TypeCarburant(id) ON DELETE CASCADE
 );
 
